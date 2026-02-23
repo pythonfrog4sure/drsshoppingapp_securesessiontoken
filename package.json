@@ -1,0 +1,11 @@
+{
+    "name": "shopping-hub",
+    "version": "1.0.0",
+    "scripts": {
+        "dev": "npx concurrently -c \"blue,green,magenta\" \"npm run dev --prefix shopping-portal\" \"npm run dev --prefix shopping-app\" \"npm run dev --prefix shopping-app-ido\"",
+        "install:all": "npm install --prefix shopping-portal && npm install --prefix shopping-app && npm install --prefix shopping-app-ido"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}
