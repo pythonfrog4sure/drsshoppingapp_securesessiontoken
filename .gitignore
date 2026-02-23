@@ -1,2 +1,25 @@
+# Dependencies
 node_modules/
+
+# Build
+dist/
+*.local
+
+# Env and secrets (never commit client secrets)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
 .DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Vite
+*.local
