@@ -1,38 +1,58 @@
-# Shopping App (with Transmit Security DRS)
+# Transmit Security E-Commerce Showcase (DRS & IDO)
 
-Simple shopping app with a two-step login (username → password) and [Transmit Security DRS](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs_overview) (Fraud Prevention) integration.
+This repository contains a multi-application showcase demonstrating the integration of [Transmit Security](https://developer.transmitsecurity.com/) into a standard React + Vite shopping application. 
 
-## Run
+The project has been expanded into three core modules:
+1. **🚀 Shopping Portal Hub** (`/shopping-portal`): A sleek landing page to route you to your desired testing environment.
+2. **🛡️ Shopping App (DRS)** (`/shopping-app`): The baseline application secured silently by Transmit Security's **Fraud Prevention (DRS)**.
+3. **🌊 Shopping App (IDO)** (`/shopping-app-ido`): An advanced orchestration integration actively leveraging Transmit Security's **Identity Orchestration (IDO)** SDK to dynamically render workflows natively within the React component.
+
+## 🏃‍♂️ How to Run
+
+To run all three applications simultaneously, run the following commands in the root directory:
 
 ```bash
-npm install
+npm run install:all
 npm run dev
 ```
 
-Open the URL shown in the terminal (e.g. http://localhost:5173).
+Open the Hub URL shown in the terminal: **http://localhost:3000** 
+*(Note: The apps operate using `@vitejs/plugin-basic-ssl`, so safely bypass the browser's localhost SSL warnings).*
 
-## Login flow
+---
 
-1. **Screen 1:** Enter username → click **Continue**. This reports a login action to Mosaic (username step).
-2. **Screen 2:** Enter password → click **Sign in**. This reports again to Mosaic (password step) and, on success, sets the authenticated user for the session.
+## 🏗️ Architecture & SDK Lifecycle
 
-## DRS integration
+### 1. Initialization (What happens on Page Load?)
+When a user navigates to the login screen of either shopping application, the `Login.tsx` component mounts and hits a `useEffect` hook. That hook triggers `initDrs()` (located in `src/drs.ts`).
 
-- **On login page load:** The SDK is initialized with your client ID and starts collecting telemetry and sending it to Mosaic.
-- **On username step (Continue):** `drs.triggerActionEvent('login', …)` is called, then **`drs.getSecureSessionToken('login')`** so Mosaic receives the action and a secure session token (JWT with device binding) is available for your backend.
-- **On password step (Sign in):** The same flow runs again; the secure session token is returned for backend use.
-- **On logout:** `drs.clearUser()` is called.
+- **DRS App:** Calls `initialize()` from `@transmitsecurity/platform-web-sdk` and provides the Client ID (`FY7MY...`). This silently spins up the telemetry data-collection engine in the background.
+- **IDO App:** Calls `initialize()` but provides *both* the DRS configuration and the `ido` configuration block. It operates against a separate Sandbox Client ID (`-LNkSy...`) and binds specifically to the App ID `XT72jJDvuoGARxOI3dKyf`. 
 
-### Secure session token
+### 2. Standard Login Flow (DRS Telemetry)
+If the user interacts with the standard login forms:
+1. **Screen 1 (Username):** User enters their name and clicks **Continue**. The app calls `drs.triggerActionEvent('login', ...)` to tell the TS fraud engine a login attempt has started.
+2. **Screen 2 (Password):** User enters password and clicks **Sign In**. The app triggers the same telemetry action and immediately calls `drs.getSecureSessionToken()`.
+3. **Backend Communication:** Although this is purely a frontend demo, the app captures that 300-second expiring secure session token (JWT with device binding) which would traditionally be passed identically alongside your API payloads to authenticate against Recommendations or Risk APIs.
 
-The app uses the **secure session token** (recommended by Mosaic for backend integrations):
+### 3. Orchestrated IDO Flow (What happens when a Button is clicked?)
+In `shopping-app-ido`, clicking the **"Start IDO Journey"** button circumvents the standard login flow entirely:
 
-- **`getSecureSessionToken(actionType?, expirationSeconds?)`** is exported from `src/drs.ts`. Call it when you need a JWT with device binding to send to your backend (e.g. for the Recommendations API or other Mosaic server calls).
-- After each **username** and **password** action, the app also calls `getSecureSessionToken('login', 300)` and the report functions return that token so a future backend can receive it (e.g. in the login API request body or headers).
-- Default expiration is 300 seconds (5 minutes); max is 3600. See [DRS SDK reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs#getsecuresessiontoken).
+1. **Triggering the Journey:** The onClick handler fires `startIdoJourney('password_auth_with_conditional_passkey_registration')`.
+2. **Network Request:** The IDO SDK contacts the Transmit Security backend: *"Start the password/passkey journey for this specific client."*
+3. **Payload Reception:** The Transmit Security engine responds with deeply nested JSON containing step instructions (i.e. `IdoServiceResponse`).
+4. **Dynamic Unpacking:** Our React component (`Login.tsx`) parses the payload to circumvent SDK v1/v2 payload wrapper differences:
+    ```typescript
+    const activeFlow = resData?.data?.form_schema ? resData.data : resData?.data?.control_flow?.[0] ...
+    ```
+5. **Dynamic UI Rendering:** Because the server payload indicates `activeFlow.type === "form"`, React instantly hides the standard view. It reads the array `form_schema` sent by the server, looping through it to generate exact HTML `<input>` elements for exactly what Transmit requested (e.g., username, password).
+6. **Submission:** Upon clicking the dynamic form's "Submit" button, React pulls all the user inputs and fires `ido.submitClientResponse('client_input', formData)`. The loop begins again as the frontend waits to see if the server tells it to render another step or grants access!
 
-The **client secret** is for **backend-only** use (e.g. OAuth client credentials for the Recommendations API). It is not used in this frontend app.
+---
 
-## Region
+## 🔑 Secure Session Token (DRS)
+The app strictly abides by fetching a **Secure Session Token** (rather than a standard session token) as recommended by Mosaic for backend integrations. 
+* Available exported via **`getSecureSessionToken()`** in `src/drs.ts`.
+* Default expiration is 300 seconds; max available is 3600s. See [DRS SDK reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs#getsecuresessiontoken).
 
-The app uses the US endpoint `https://api.transmitsecurity.io/risk-collect/`. For EU, Canada, Australia, or sandbox, change `serverPath` in `src/drs.ts` per the [SDK docs](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs_overview).
+*(Note: The Client Secret is for backend-to-backend Oauth and intentionally omitted from this frontend code.)*
