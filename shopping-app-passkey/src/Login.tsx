@@ -8,7 +8,9 @@ const CLIENT_ID = '-LNkSyvmbee08fv7e9_p9';
 // Available passkey journeys - update these based on your Transmit Security console
 const JOURNEYS = {
   // Conditional passkey authentication flow
-  PASSKEY_COMBINED: 'conditional_passkey_authentication',
+  PASSKEY_AUTH: 'conditional_passkey_authentication',
+  // Passkey registration flow
+  PASSKEY_REGISTER: 'username_email_passkey_registration',
 };
 
 interface LoginProps {
@@ -184,16 +186,29 @@ export function Login({ onLogin }: LoginProps) {
       <div className="login-actions">
         <button
           type="button"
-          onClick={() => startJourney(JOURNEYS.PASSKEY_COMBINED)}
+          onClick={() => startJourney(JOURNEYS.PASSKEY_AUTH)}
           disabled={loading || !sdkReady}
           className="btn btn-primary"
         >
-          {loading ? 'Starting...' : 'Continue with Passkey'}
+          {loading ? 'Starting...' : 'Sign In with Passkey'}
+        </button>
+
+        <div className="login-divider">
+          <span>or</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => startJourney(JOURNEYS.PASSKEY_REGISTER)}
+          disabled={loading || !sdkReady}
+          className="btn btn-secondary"
+        >
+          {loading ? 'Starting...' : 'Register New Passkey'}
         </button>
       </div>
 
       <p className="login-info">
-        Sign in with your passkey or register a new one through secure orchestration.
+        Use 'Sign In' if you already have a passkey, or 'Register' to create a new one.
       </p>
     </div>
   );
