@@ -1,6 +1,13 @@
+import { useEffect } from 'react';
 import './index.css';
+import { initDrs } from './drs';
 
 function App() {
+  // Initialize DRS on hub page load for navigation tracking
+  useEffect(() => {
+    initDrs();
+  }, []);
+
   return (
     <>
       <div className="orb orb-1"></div>

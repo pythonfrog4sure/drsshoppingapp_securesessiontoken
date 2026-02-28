@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ido, initialize } from '@transmitsecurity/platform-web-sdk';
+import { initDrs, reportUsernameAction, setAuthenticatedUser } from './drs';
 
 const APP_ID = 'XT72jJDvuoGARxOI3dKyf';
 const CLIENT_ID = '-LNkSyvmbee08fv7e9_p9';
@@ -17,6 +18,9 @@ export function Login({ onLogin }: LoginProps) {
   const [formData, setFormData] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // Initialize DRS for fraud detection
+    initDrs();
+
     async function startJourney() {
       try {
         await initialize({
@@ -37,12 +41,15 @@ export function Login({ onLogin }: LoginProps) {
     startJourney();
   }, []);
 
-  const processJourneyStep = (resData: any) => {
+  const processJourneyStep = async (resData: any) => {
     console.log('Journey Step:', resData);
 
     // Check if the journey completed successfully
     if (resData?.journeyStepId === 'action:success' || resData?.type === 'journey_success' || resData?.journey?.status === 'success') {
-      onLogin(formData.username || 'Successful User');
+      const user = formData.username || 'Successful User';
+      // Report successful login to DRS
+      await setAuthenticatedUser(user);
+      onLogin(user);
       return;
     }
 
@@ -80,9 +87,14 @@ export function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
+      // Report action to DRS if username is being submitted
+      if (formData.username) {
+        await reportUsernameAction(formData.username);
+      }
+
       // Submit client input
       const resData = await ido.submitClientResponse('client_input', formData);
-      processJourneyStep(resData);
+      await processJourneyStep(resData);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error submitting input');

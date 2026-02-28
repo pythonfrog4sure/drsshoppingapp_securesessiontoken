@@ -4,11 +4,14 @@
     "workspaces": [
         "shopping-portal",
         "shopping-app",
-        "shopping-app-ido"
+        "shopping-app-ido",
+        "shopping-app-passkey"
     ],
     "scripts": {
+        "start": "concurrently -n portal,drs,ido,passkey -c blue,green,magenta,cyan \"npm run dev -w shopping-portal\" \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\"",
+        "dev": "npm run start",
         "install:all": "npm install",
-        "dev": "npx concurrently \"npm run dev -w shopping-portal\" \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\""
+        "build": "npm run build -w shopping-portal && npm run build -w shopping-app && npm run build -w shopping-app-ido && npm run build -w shopping-app-passkey"
     },
     "devDependencies": {
         "concurrently": "^8.2.2"

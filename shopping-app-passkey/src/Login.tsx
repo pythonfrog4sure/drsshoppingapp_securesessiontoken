@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ido, initialize } from '@transmitsecurity/platform-web-sdk';
+import { initDrs, reportUsernameAction, setAuthenticatedUser } from './drs';
 
 const APP_ID = 'XT72jJDvuoGARxOI3dKyf';
 const CLIENT_ID = '-LNkSyvmbee08fv7e9_p9';
@@ -32,6 +33,9 @@ export function Login({ onLogin }: LoginProps) {
   const [formData, setFormData] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    // Initialize DRS for fraud detection
+    initDrs();
+
     async function initSDK() {
       try {
         await initialize({
@@ -52,7 +56,7 @@ export function Login({ onLogin }: LoginProps) {
     initSDK();
   }, []);
 
-  const processJourneyStep = (resData: any) => {
+  const processJourneyStep = async (resData: any) => {
     console.log('Journey Step:', resData);
 
     // Check if the journey completed successfully
@@ -61,8 +65,11 @@ export function Login({ onLogin }: LoginProps) {
       resData?.type === 'journey_success' ||
       resData?.journey?.status === 'success'
     ) {
+      const user = formData.username || username || 'Authenticated User';
+      // Report successful passkey authentication to DRS
+      await setAuthenticatedUser(user);
       setFlowState('success');
-      onLogin(formData.username || username || 'Authenticated User');
+      onLogin(user);
       return;
     }
 
@@ -104,9 +111,12 @@ export function Login({ onLogin }: LoginProps) {
     setLoading(true);
     setFormData({ username }); // Pre-fill username
 
+    // Report passkey login attempt to DRS
+    await reportUsernameAction(username.trim());
+
     try {
       const resData = await ido.startJourney(journeyName);
-      processJourneyStep(resData);
+      await processJourneyStep(resData);
     } catch (err: unknown) {
       console.error('Journey failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to start journey';
@@ -131,8 +141,13 @@ export function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
+      // Report action to DRS if username is being submitted
+      if (formData.username) {
+        await reportUsernameAction(formData.username);
+      }
+
       const resData = await ido.submitClientResponse('client_input', formData);
-      processJourneyStep(resData);
+      await processJourneyStep(resData);
     } catch (err: unknown) {
       console.error('Submit failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Error submitting input';

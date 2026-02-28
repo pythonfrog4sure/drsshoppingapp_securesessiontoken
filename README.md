@@ -1,58 +1,286 @@
-# Transmit Security E-Commerce Showcase (DRS & IDO)
+# Transmit Security E-Commerce Showcase
 
-This repository contains a multi-application showcase demonstrating the integration of [Transmit Security](https://developer.transmitsecurity.com/) into a standard React + Vite shopping application. 
+A multi-application monorepo demonstrating [Transmit Security](https://developer.transmitsecurity.com/) integrations including DRS (Fraud Prevention), IDO (Identity Orchestration), and Passkey authentication in React + Vite applications.
 
-The project has been expanded into three core modules:
-1. **🚀 Shopping Portal Hub** (`/shopping-portal`): A sleek landing page to route you to your desired testing environment.
-2. **🛡️ Shopping App (DRS)** (`/shopping-app`): The baseline application secured silently by Transmit Security's **Fraud Prevention (DRS)**.
-3. **🌊 Shopping App (IDO)** (`/shopping-app-ido`): An advanced orchestration integration actively leveraging Transmit Security's **Identity Orchestration (IDO)** SDK to dynamically render workflows natively within the React component.
+## Applications
 
-## 🏃‍♂️ How to Run
+| App | Port | Description |
+|-----|------|-------------|
+| **Shopping Portal Hub** | https://localhost:3000 | Landing page to navigate between all shopping apps |
+| **Shop with DRS** | https://localhost:3001 | Standard login secured with DRS fraud prevention |
+| **Shop with IDO** | https://localhost:3002 | Orchestrated login using IDO SDK journeys |
+| **Shop with Passkey** | https://localhost:3003 | Passwordless authentication via IDO passkey flow |
 
-To run all three applications simultaneously, run the following commands in the root directory:
+---
+
+## Quick Start
+
+### 1. Install Dependencies
 
 ```bash
-npm run install:all
-npm run dev
+npm install
 ```
 
-Open the Hub URL shown in the terminal: **http://localhost:3000** 
-*(Note: The apps operate using `@vitejs/plugin-basic-ssl`, so safely bypass the browser's localhost SSL warnings).*
+This installs all dependencies for the monorepo and all workspace apps.
+
+### 2. Set Up SSL Certificates (Required for HTTPS)
+
+All apps run on HTTPS which is required for WebAuthn/Passkeys. Generate local CA certificates:
+
+```bash
+# Create certs directory
+mkdir -p shopping-app-passkey/certs
+cd shopping-app-passkey/certs
+
+# Generate CA private key
+openssl genrsa -out ca.key 4096
+
+# Generate CA certificate
+openssl req -x509 -new -nodes -key ca.key -sha256 -days 365 -out ca.crt \
+  -subj "/C=US/ST=California/L=San Francisco/O=Local Dev CA/CN=Local Development CA"
+
+# Generate server private key
+openssl genrsa -out server.key 2048
+
+# Create server config for localhost
+cat > server.conf << 'EOF'
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = US
+ST = California
+L = San Francisco
+O = Local Dev
+CN = localhost
+
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = *.localhost
+IP.1 = 127.0.0.1
+IP.2 = ::1
+EOF
+
+# Generate CSR and sign with CA
+openssl req -new -key server.key -out server.csr -config server.conf
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 365 -sha256 -extensions v3_req -extfile server.conf
+
+cd ../..
+
+# Copy certs to all apps
+cp -r shopping-app-passkey/certs shopping-app/
+cp -r shopping-app-passkey/certs shopping-app-ido/
+cp -r shopping-app-passkey/certs shopping-portal/
+```
+
+### 3. Trust the CA Certificate (macOS)
+
+To avoid browser SSL warnings:
+
+```bash
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain shopping-app-passkey/certs/ca.crt
+```
+
+### 4. Start All Applications
+
+```bash
+npm start
+```
+
+This starts all 4 apps concurrently with color-coded output:
+- **[portal]** (blue) - Shopping Portal Hub
+- **[drs]** (green) - Shop with DRS
+- **[ido]** (magenta) - Shop with IDO
+- **[passkey]** (cyan) - Shop with Passkey
+
+Open **https://localhost:3000** to access the portal hub.
 
 ---
 
-## 🏗️ Architecture & SDK Lifecycle
+## Available Scripts
 
-### 1. Initialization (What happens on Page Load?)
-When a user navigates to the login screen of either shopping application, the `Login.tsx` component mounts and hits a `useEffect` hook. That hook triggers `initDrs()` (located in `src/drs.ts`).
-
-- **DRS App:** Calls `initialize()` from `@transmitsecurity/platform-web-sdk` and provides the Client ID (`FY7MY...`). This silently spins up the telemetry data-collection engine in the background.
-- **IDO App:** Calls `initialize()` but provides *both* the DRS configuration and the `ido` configuration block. It operates against a separate Sandbox Client ID (`-LNkSy...`) and binds specifically to the App ID `XT72jJDvuoGARxOI3dKyf`. 
-
-### 2. Standard Login Flow (DRS Telemetry)
-If the user interacts with the standard login forms:
-1. **Screen 1 (Username):** User enters their name and clicks **Continue**. The app calls `drs.triggerActionEvent('login', ...)` to tell the TS fraud engine a login attempt has started.
-2. **Screen 2 (Password):** User enters password and clicks **Sign In**. The app triggers the same telemetry action and immediately calls `drs.getSecureSessionToken()`.
-3. **Backend Communication:** Although this is purely a frontend demo, the app captures that 300-second expiring secure session token (JWT with device binding) which would traditionally be passed identically alongside your API payloads to authenticate against Recommendations or Risk APIs.
-
-### 3. Orchestrated IDO Flow (What happens when a Button is clicked?)
-In `shopping-app-ido`, clicking the **"Start IDO Journey"** button circumvents the standard login flow entirely:
-
-1. **Triggering the Journey:** The onClick handler fires `startIdoJourney('password_auth_with_conditional_passkey_registration')`.
-2. **Network Request:** The IDO SDK contacts the Transmit Security backend: *"Start the password/passkey journey for this specific client."*
-3. **Payload Reception:** The Transmit Security engine responds with deeply nested JSON containing step instructions (i.e. `IdoServiceResponse`).
-4. **Dynamic Unpacking:** Our React component (`Login.tsx`) parses the payload to circumvent SDK v1/v2 payload wrapper differences:
-    ```typescript
-    const activeFlow = resData?.data?.form_schema ? resData.data : resData?.data?.control_flow?.[0] ...
-    ```
-5. **Dynamic UI Rendering:** Because the server payload indicates `activeFlow.type === "form"`, React instantly hides the standard view. It reads the array `form_schema` sent by the server, looping through it to generate exact HTML `<input>` elements for exactly what Transmit requested (e.g., username, password).
-6. **Submission:** Upon clicking the dynamic form's "Submit" button, React pulls all the user inputs and fires `ido.submitClientResponse('client_input', formData)`. The loop begins again as the frontend waits to see if the server tells it to render another step or grants access!
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start all apps concurrently |
+| `npm run dev` | Alias for `npm start` |
+| `npm run build` | Build all apps for production |
+| `npm install` | Install all workspace dependencies |
 
 ---
 
-## 🔑 Secure Session Token (DRS)
-The app strictly abides by fetching a **Secure Session Token** (rather than a standard session token) as recommended by Mosaic for backend integrations. 
-* Available exported via **`getSecureSessionToken()`** in `src/drs.ts`.
-* Default expiration is 300 seconds; max available is 3600s. See [DRS SDK reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs#getsecuresessiontoken).
+## Project Structure
 
-*(Note: The Client Secret is for backend-to-backend Oauth and intentionally omitted from this frontend code.)*
+```
+drsshoppingapp_securesessiontoken/
+├── package.json              # Root monorepo config with workspaces
+├── shopping-portal/          # Hub landing page (port 3000)
+│   ├── src/
+│   │   ├── App.tsx          # Hub UI with app links
+│   │   ├── drs.ts           # DRS SDK integration
+│   │   └── index.css        # Styling
+│   ├── certs/               # SSL certificates (gitignored)
+│   └── vite.config.ts       # Vite config with HTTPS
+├── shopping-app/             # DRS demo app (port 3001)
+│   ├── src/
+│   │   ├── Login.tsx        # Two-step login with DRS tracking
+│   │   ├── Shop.tsx         # Shop UI after login
+│   │   └── drs.ts           # DRS SDK integration
+│   └── certs/
+├── shopping-app-ido/         # IDO demo app (port 3002)
+│   ├── src/
+│   │   ├── Login.tsx        # Dynamic IDO journey rendering
+│   │   ├── Shop.tsx         # Shop UI after login
+│   │   └── drs.ts           # DRS SDK integration
+│   └── certs/
+└── shopping-app-passkey/     # Passkey demo app (port 3003)
+    ├── src/
+    │   ├── Login.tsx        # Passkey IDO flow
+    │   ├── Shop.tsx         # Shop UI after login
+    │   └── drs.ts           # DRS SDK integration
+    └── certs/
+```
+
+---
+
+## SDK Integration Details
+
+### DRS (Detection & Response Services)
+
+All apps integrate DRS for fraud prevention and risk assessment:
+
+```typescript
+// Initialize DRS on page load
+import { initDrs } from './drs';
+useEffect(() => { initDrs(); }, []);
+
+// Report login actions
+await reportUsernameAction(username);
+await reportPasswordAction(username);
+
+// Set authenticated user after successful login
+await setAuthenticatedUser(username);
+
+// Get secure session token for backend API calls
+const token = await getSecureSessionToken('login', 300);
+```
+
+**DRS tracks:**
+- Device fingerprinting
+- Behavioral biometrics
+- Login attempts and user actions
+- Session binding with secure tokens
+
+### IDO (Identity Orchestration)
+
+The IDO SDK enables server-driven authentication flows:
+
+```typescript
+import { ido, initialize } from '@transmitsecurity/platform-web-sdk';
+
+// Initialize IDO
+await initialize({
+  clientId: CLIENT_ID,
+  ido: {
+    applicationId: APP_ID,
+    serverPath: 'https://api.transmitsecurity.io/ido'
+  }
+});
+
+// Start a journey
+const response = await ido.startJourney('journey_name');
+
+// Submit form data
+const response = await ido.submitClientResponse('client_input', formData);
+```
+
+**Available Journeys:**
+- `password_auth_with_conditional_passkey_registration` - Password + optional passkey
+
+### Passkey / WebAuthn
+
+Passkey authentication is handled via IDO journeys for orchestrated passkey flows.
+
+---
+
+## Configuration
+
+### Client IDs
+
+| SDK | Client ID | Usage |
+|-----|-----------|-------|
+| DRS | `FY7MYqSinvz2CzfqZzNhe` | Fraud detection |
+| IDO | `-LNkSyvmbee08fv7e9_p9` | Orchestration |
+| IDO App ID | `XT72jJDvuoGARxOI3dKyf` | Journey binding |
+
+### Server Paths
+
+| Service | URL |
+|---------|-----|
+| DRS | `https://api.transmitsecurity.io/risk-collect/` |
+| IDO | `https://api.transmitsecurity.io/ido` |
+
+---
+
+## Development
+
+### Adding a New App
+
+1. Create a new directory: `shopping-app-newfeature/`
+2. Copy structure from existing app
+3. Add to `workspaces` in root `package.json`
+4. Copy SSL certs: `cp -r shopping-app-passkey/certs shopping-app-newfeature/`
+5. Update vite.config.ts with unique port
+6. Run `npm install` to link workspace
+
+### SSL Certificate Notes
+
+- Certificates are in `certs/` directories (gitignored)
+- Each app needs its own copy of the certs
+- Certs are valid for 365 days
+- Regenerate if expired using the commands above
+
+---
+
+## Troubleshooting
+
+### SSL Certificate Errors
+- Ensure certs are generated and copied to all apps
+- Trust the CA certificate in your system keychain
+- Clear browser cache and restart browser
+
+### Port Already in Use
+- Check for running processes: `lsof -i :3000`
+- Kill process: `kill -9 <PID>`
+
+### SDK Initialization Errors
+- Verify client IDs are correct
+- Check network connectivity to Transmit Security APIs
+- Ensure HTTPS is properly configured (required for WebAuthn)
+
+### WebAuthn/Passkey Errors
+- WebAuthn requires HTTPS (localhost with valid certs works)
+- Ensure browser supports WebAuthn
+- Check Transmit Security console for WebAuthn configuration
+
+---
+
+## Resources
+
+- [Transmit Security Developer Portal](https://developer.transmitsecurity.com/)
+- [DRS SDK Reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs)
+- [IDO SDK Reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/ido)
+- [WebAuthn SDK Reference](https://developer.transmitsecurity.com/sdk-ref/webauthn/interfaces/webauthnsdk/)
+
+---
+
+## License
+
+Private - Internal Use Only
