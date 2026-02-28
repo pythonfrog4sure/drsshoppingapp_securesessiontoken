@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ido, initialize } from '@transmitsecurity/platform-web-sdk';
+import { ido, initialize, webauthn } from '@transmitsecurity/platform-web-sdk';
 import { initDrs, reportUsernameAction, setAuthenticatedUser } from './drs';
 
 const APP_ID = 'XT72jJDvuoGARxOI3dKyf';
@@ -77,6 +77,58 @@ export function Login({ onLogin }: LoginProps) {
       setFlowState('error');
       setLoading(false);
       return;
+    }
+
+    // Check for WebAuthn registration/authentication steps
+    const controlFlow = resData?.data?.control_flow?.[0];
+    if (controlFlow?.type === 'transmit_platform_web_authn_registration') {
+      console.log('WebAuthn Registration step detected:', controlFlow);
+      try {
+        // Call WebAuthn SDK to register passkey
+        const webauthnEncodedResult = await webauthn.register({
+          username: controlFlow.username || formData.username || username
+        });
+        console.log('WebAuthn registration successful, submitting result');
+
+        // Submit the encoded result back to the journey
+        const result = await ido.submitClientResponse('client_input', {
+          webauthn_encoded_result: webauthnEncodedResult
+        });
+        await processJourneyStep(result);
+        return;
+      } catch (err: unknown) {
+        console.error('WebAuthn registration failed:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Passkey registration failed';
+        setError(errorMessage);
+        setFlowState('error');
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (controlFlow?.type === 'transmit_platform_web_authn_authentication') {
+      console.log('WebAuthn Authentication step detected:', controlFlow);
+      try {
+        // Call WebAuthn SDK to authenticate with passkey
+        const webauthnEncodedResult = await webauthn.authenticate.modal({
+          username: controlFlow.username || formData.username || username
+        });
+        console.log('WebAuthn authentication successful, submitting result');
+
+        // Submit the encoded result back to the journey
+        const result = await ido.submitClientResponse('client_input', {
+          webauthn_encoded_result: webauthnEncodedResult
+        });
+        await processJourneyStep(result);
+        return;
+      } catch (err: unknown) {
+        console.error('WebAuthn authentication failed:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Passkey authentication failed';
+        setError(errorMessage);
+        setFlowState('error');
+        setLoading(false);
+        return;
+      }
     }
 
     // Dynamic Unpacking - extract form schema
