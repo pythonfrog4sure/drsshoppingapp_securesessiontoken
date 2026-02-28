@@ -7,12 +7,8 @@ const CLIENT_ID = '-LNkSyvmbee08fv7e9_p9';
 
 // Available passkey journeys - update these based on your Transmit Security console
 const JOURNEYS = {
-  // Passkey-first authentication with registration fallback
-  PASSKEY_AUTH: 'passkey_authentication',
-  // Passkey registration flow
-  PASSKEY_REGISTER: 'passkey_registration',
-  // Combined flow - tries auth first, then offers registration
-  PASSKEY_COMBINED: 'password_auth_with_conditional_passkey_registration',
+  // Conditional passkey authentication flow
+  PASSKEY_COMBINED: 'conditional_passkey_authentication',
 };
 
 interface LoginProps {
