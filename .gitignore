@@ -23,3 +23,7 @@ npm-debug.log*
 
 # Vite
 *.local
+
+# SSL Certificates (contain private keys)
+certs/
+*/certs/

@@ -1,0 +1,267 @@
+import { useEffect, useState } from 'react';
+import { ido, initialize } from '@transmitsecurity/platform-web-sdk';
+
+const APP_ID = 'XT72jJDvuoGARxOI3dKyf';
+const CLIENT_ID = '-LNkSyvmbee08fv7e9_p9';
+
+// Available passkey journeys - update these based on your Transmit Security console
+const JOURNEYS = {
+  // Passkey-first authentication with registration fallback
+  PASSKEY_AUTH: 'passkey_authentication',
+  // Passkey registration flow
+  PASSKEY_REGISTER: 'passkey_registration',
+  // Combined flow - tries auth first, then offers registration
+  PASSKEY_COMBINED: 'password_auth_with_conditional_passkey_registration',
+};
+
+interface LoginProps {
+  onLogin: (username: string) => void;
+}
+
+type FlowState = 'init' | 'username' | 'journey' | 'success' | 'error';
+
+export function Login({ onLogin }: LoginProps) {
+  const [flowState, setFlowState] = useState<FlowState>('init');
+  const [username, setUsername] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
+
+  // Dynamic form state for IDO journey
+  const [formSchema, setFormSchema] = useState<any[]>([]);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    async function initSDK() {
+      try {
+        await initialize({
+          clientId: CLIENT_ID,
+          ido: {
+            applicationId: APP_ID,
+            serverPath: 'https://api.transmitsecurity.io/ido'
+          }
+        });
+        setSdkReady(true);
+        setFlowState('username');
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to initialize SDK';
+        setError(errorMessage);
+        setFlowState('error');
+      }
+    }
+    initSDK();
+  }, []);
+
+  const processJourneyStep = (resData: any) => {
+    console.log('Journey Step:', resData);
+
+    // Check if the journey completed successfully
+    if (
+      resData?.journeyStepId === 'action:success' ||
+      resData?.type === 'journey_success' ||
+      resData?.journey?.status === 'success'
+    ) {
+      setFlowState('success');
+      onLogin(formData.username || username || 'Authenticated User');
+      return;
+    }
+
+    // Check if rejection
+    if (resData?.journeyStepId === 'action:rejection') {
+      setError('Authentication rejected. Please try again.');
+      setFlowState('error');
+      setLoading(false);
+      return;
+    }
+
+    // Dynamic Unpacking - extract form schema
+    const activeFlow = resData?.data?.form_schema
+      ? resData.data
+      : resData?.data?.control_flow?.[0] || resData?.data;
+
+    if (activeFlow?.form_schema || activeFlow?.schema) {
+      setFormSchema(activeFlow.form_schema || activeFlow.schema || []);
+      setFormData((prev) => ({ ...prev })); // Keep existing form data
+      setError(null);
+      setFlowState('journey');
+    } else {
+      console.warn('Unsupported journey step:', resData);
+      setError('Unsupported step reached. Check console for details.');
+      setFlowState('error');
+    }
+
+    setLoading(false);
+  };
+
+  // Start a passkey journey
+  const startJourney = async (journeyName: string) => {
+    if (!username.trim()) {
+      setError('Please enter a username');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    setFormData({ username }); // Pre-fill username
+
+    try {
+      const resData = await ido.startJourney(journeyName);
+      processJourneyStep(resData);
+    } catch (err: unknown) {
+      console.error('Journey failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start journey';
+      setError(errorMessage);
+      setFlowState('error');
+      setLoading(false);
+    }
+  };
+
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  // Submit form data to the journey
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const resData = await ido.submitClientResponse('client_input', formData);
+      processJourneyStep(resData);
+    } catch (err: unknown) {
+      console.error('Submit failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error submitting input';
+      setError(errorMessage);
+      setLoading(false);
+    }
+  };
+
+  // Reset to start
+  const handleReset = () => {
+    setFlowState('username');
+    setFormSchema([]);
+    setFormData({});
+    setError(null);
+    setLoading(false);
+  };
+
+  // Render username input screen
+  const renderUsernameScreen = () => (
+    <div className="login-form">
+      <div className="form-group">
+        <label htmlFor="username">Username</label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Enter your username or email"
+          disabled={loading}
+          autoComplete="username webauthn"
+          autoFocus
+        />
+      </div>
+
+      {error && <p className="login-error">{error}</p>}
+
+      <div className="login-actions">
+        <button
+          type="button"
+          onClick={() => startJourney(JOURNEYS.PASSKEY_COMBINED)}
+          disabled={loading || !sdkReady}
+          className="btn btn-primary"
+        >
+          {loading ? 'Starting...' : 'Continue with Passkey'}
+        </button>
+      </div>
+
+      <p className="login-info">
+        Sign in with your passkey or register a new one through secure orchestration.
+      </p>
+    </div>
+  );
+
+  // Render dynamic journey form
+  const renderJourneyForm = () => (
+    <form onSubmit={handleFormSubmit} className="login-form" autoComplete="on">
+      {formSchema.map((field: any, index: number) => {
+        if (field.type === 'submit' || field.type === 'button') return null;
+
+        const isPassword =
+          field.name?.toLowerCase().includes('password') || field.type === 'password';
+
+        return (
+          <div key={index} className="form-group">
+            <label htmlFor={field.name}>{field.label || field.name}</label>
+            <input
+              id={field.name}
+              name={field.name}
+              type={isPassword ? 'password' : field.type === 'string' ? 'text' : field.type || 'text'}
+              value={formData[field.name] || ''}
+              onChange={handleInputChange}
+              placeholder={`Enter ${field.label || field.name}`}
+              required={field.required}
+              disabled={loading}
+            />
+          </div>
+        );
+      })}
+
+      {loading && <p className="login-status">Processing...</p>}
+      {error && <p className="login-error">{error}</p>}
+
+      <div className="login-actions">
+        <button type="submit" disabled={loading} className="btn btn-primary">
+          {loading ? 'Continuing...' : 'Continue'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={loading}
+          className="btn btn-secondary"
+        >
+          Start Over
+        </button>
+      </div>
+    </form>
+  );
+
+  return (
+    <div className="login">
+      <div className="login-card">
+        <h1 className="login-title">Shop with Passkey</h1>
+        <p className="login-subtitle">Secure passwordless authentication via IDO</p>
+
+        {flowState === 'init' && (
+          <p className="login-status">Initializing SDK...</p>
+        )}
+
+        {flowState === 'username' && renderUsernameScreen()}
+
+        {flowState === 'journey' && formSchema.length > 0 && renderJourneyForm()}
+
+        {flowState === 'error' && (
+          <div className="login-form">
+            <p className="login-error">{error || 'An error occurred'}</p>
+            <div className="login-actions">
+              <button onClick={handleReset} className="btn btn-secondary">
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {flowState === 'success' && (
+          <p className="login-status">Success! Redirecting...</p>
+        )}
+      </div>
+    </div>
+  );
+}

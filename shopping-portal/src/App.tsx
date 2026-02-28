@@ -28,6 +28,15 @@ function App() {
             </p>
             <span className="card-btn">Launch IDO App &rarr;</span>
           </a>
+
+          <a href="https://localhost:3003" className="card card-passkey" target="_blank" rel="noopener noreferrer">
+            <span className="card-icon">🔑</span>
+            <h2 className="card-title">Shop with Passkey</h2>
+            <p className="card-desc">
+              Experience passwordless authentication with Transmit Security's <strong>WebAuthn/Passkey SDK</strong> for secure biometric login.
+            </p>
+            <span className="card-btn">Launch Passkey App &rarr;</span>
+          </a>
         </div>
       </main>
     </>

@@ -136,6 +136,22 @@ body {
   border-top-color: #f77062;
 }
 
+.card-passkey:hover {
+  box-shadow: 0 20px 50px rgba(100, 255, 150, 0.1);
+  border-color: rgba(100, 255, 150, 0.3);
+}
+
+.card-passkey .card-icon {
+  background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.card-passkey {
+  border-top-width: 4px;
+  border-top-color: #00ff88;
+}
+
 .card-icon {
   font-size: 3rem;
   margin-bottom: 1.5rem;
