@@ -41,6 +41,9 @@ export function Login({ onLogin }: LoginProps) {
           ido: {
             applicationId: APP_ID,
             serverPath: 'https://api.transmitsecurity.io/ido'
+          },
+          webauthn: {
+            serverPath: 'https://api.transmitsecurity.io'
           }
         });
         setSdkReady(true);
