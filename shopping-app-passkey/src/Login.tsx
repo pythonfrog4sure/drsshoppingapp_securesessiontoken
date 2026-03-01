@@ -109,6 +109,27 @@ export function Login({ onLogin }: LoginProps) {
       }
     }
 
+    // Check for information/success step (journeyStepId-based)
+    if (resData?.journeyStepId === 'action:information') {
+      console.log('Information step detected:', resData?.data?.title);
+      try {
+        // Acknowledge the information step and continue
+        const result = await ido.submitClientResponse('client_input', {});
+        await processJourneyStep(result);
+        return;
+      } catch (err: unknown) {
+        console.error('Failed to continue after information step:', err);
+        // If this was a success message, treat as success
+        if (resData?.data?.title?.toLowerCase().includes('success')) {
+          const user = formData.username || username || 'Authenticated User';
+          await setAuthenticatedUser(user);
+          setFlowState('success');
+          onLogin(user);
+          return;
+        }
+      }
+    }
+
     // Check for WebAuthn authentication step
     if (resData?.journeyStepId === 'action:webauthn_authentication') {
       console.log('WebAuthn Authentication step detected:', resData);
