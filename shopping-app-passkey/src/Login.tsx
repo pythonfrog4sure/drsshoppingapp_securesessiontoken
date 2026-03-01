@@ -43,7 +43,7 @@ export function Login({ onLogin }: LoginProps) {
             serverPath: 'https://api.transmitsecurity.io/ido'
           },
           webauthn: {
-            serverPath: 'https://api.transmitsecurity.io'
+            serverPath: 'https://api.transmitsecurity.io/cis'
           }
         });
         setSdkReady(true);
@@ -136,8 +136,31 @@ export function Login({ onLogin }: LoginProps) {
       }
     }
 
-    // Also check for control_flow-based WebAuthn steps (alternative format)
+    // Check for control_flow-based steps
     const controlFlow = resData?.data?.control_flow?.[0];
+
+    // Handle information/success steps - acknowledge and continue
+    if (controlFlow?.type === 'information') {
+      console.log('Information step detected:', controlFlow.title);
+      try {
+        // Acknowledge the information step and continue
+        const result = await ido.submitClientResponse('client_input', {});
+        await processJourneyStep(result);
+        return;
+      } catch (err: unknown) {
+        console.error('Failed to continue after information step:', err);
+        // If this was a success message, treat as success
+        if (controlFlow.title?.toLowerCase().includes('success')) {
+          const user = formData.username || username || 'Authenticated User';
+          await setAuthenticatedUser(user);
+          setFlowState('success');
+          onLogin(user);
+          return;
+        }
+      }
+    }
+
+    // Handle WebAuthn registration (control_flow format)
     if (controlFlow?.type === 'transmit_platform_web_authn_registration') {
       console.log('WebAuthn Registration (control_flow) detected:', controlFlow);
       try {
