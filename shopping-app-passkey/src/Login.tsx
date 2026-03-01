@@ -7,8 +7,8 @@ const CLIENT_ID = '-LNkSyvmbee08fv7e9_p9';
 
 // Available passkey journeys - update these based on your Transmit Security console
 const JOURNEYS = {
-  // Conditional passkey authentication flow
-  PASSKEY_AUTH: 'conditional_passkey_authentication',
+  // Passkey authentication flow
+  PASSKEY_AUTH: 'email_passkey_authentication',
   // Passkey registration flow
   PASSKEY_REGISTER: 'username_email_passkey_registration',
 };
