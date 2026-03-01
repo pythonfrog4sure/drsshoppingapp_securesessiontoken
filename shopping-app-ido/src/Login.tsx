@@ -60,14 +60,43 @@ export function Login({ onLogin }: LoginProps) {
       return;
     }
 
-    // Dynamic Unpacking as per README
-    const activeFlow = resData?.data?.form_schema ? resData.data : resData?.data?.control_flow?.[0] || resData?.data;
+    // Dynamically unpack the form schema from wherever it might be nested
+    const extractedSchema =
+      resData?.data?.app_data?.form_schema ||
+      resData?.data?.app_data?.schema ||
+      resData?.data?.form_schema ||
+      resData?.data?.control_flow?.[0]?.form_schema ||
+      resData?.data?.schema ||
+      resData?.clientResponseOptions?.client_input?.schema ||
+      (resData?.clientResponseOptions?.passkeys?.schema ? null : undefined); // Ignoring raw passkey schema as it's often not an array form
 
-    if (activeFlow?.form_schema || activeFlow?.schema) {
-      setFormSchema(activeFlow.form_schema || activeFlow.schema || []);
+    let finalSchema: any[] = [];
+    if (extractedSchema && Array.isArray(extractedSchema)) {
+      finalSchema = extractedSchema;
+    } else if (extractedSchema?.properties) {
+      // Sometimes it's a JSON Schema object
+      finalSchema = Object.keys(extractedSchema.properties).map(key => ({
+        name: key,
+        ...extractedSchema.properties[key]
+      }));
+    } else if (resData?.journeyStepId === 'email_passkey_login_form' || resData?.journeyStepId === 'login') {
+      // Hardcode fallback for login form
+      finalSchema = [
+        { name: 'username', label: 'Email or Username', type: 'string', required: true }
+      ];
+    } else if (resData?.journeyStepId === 'password') {
+      // Hardcode fallback for password
+      finalSchema = [
+        { name: 'password', label: 'Password', type: 'password', required: true }
+      ];
+    }
+
+    if (finalSchema.length > 0) {
+      setFormSchema(finalSchema);
       setFormData({});
       setError(null);
     } else {
+      console.error('Could not find form schema in resData:', resData);
       setError('Unsupported step reached. Check console for details.');
     }
 

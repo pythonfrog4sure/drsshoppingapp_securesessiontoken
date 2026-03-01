@@ -224,13 +224,60 @@ export function Login({ onLogin }: LoginProps) {
       }
     }
 
-    // Dynamic Unpacking - extract form schema
-    const activeFlow = resData?.data?.form_schema
-      ? resData.data
-      : resData?.data?.control_flow?.[0] || resData?.data;
+    // Check if the step offers passkeys as an option natively (clientResponseOptions)
+    if (resData?.clientResponseOptions?.passkeys) {
+      console.log('WebAuthn Passkey option detected:', resData.clientResponseOptions.passkeys);
+      try {
+        const webauthnUsername = resData?.data?.username || formData.username || username;
+        const webauthnEncodedResult = await webauthn.authenticate.modal({
+          username: webauthnUsername
+        });
 
-    if (activeFlow?.form_schema || activeFlow?.schema) {
-      setFormSchema(activeFlow.form_schema || activeFlow.schema || []);
+        // Submit the encoded result back using the "passkeys" response type
+        const result = await ido.submitClientResponse('passkeys', {
+          webauthn_encoded_result: webauthnEncodedResult
+        });
+        await processJourneyStep(result);
+        return;
+      } catch (err: unknown) {
+        console.error('Passkey flow cancelled or failed, falling back to form:', err);
+        // Fall through to show the form if the modal is dismissed or errors
+      }
+    }
+
+    // Dynamically unpack the form schema from wherever it might be nested
+    const extractedSchema =
+      resData?.data?.app_data?.form_schema ||
+      resData?.data?.app_data?.schema ||
+      resData?.data?.form_schema ||
+      resData?.data?.control_flow?.[0]?.form_schema ||
+      resData?.data?.schema ||
+      resData?.clientResponseOptions?.client_input?.schema ||
+      (resData?.clientResponseOptions?.passkeys?.schema ? null : undefined); // Ignoring raw passkey schema as it's often not an array form
+
+    let finalSchema: any[] = [];
+    if (extractedSchema && Array.isArray(extractedSchema)) {
+      finalSchema = extractedSchema;
+    } else if (extractedSchema?.properties) {
+      // Sometimes it's a JSON Schema object
+      finalSchema = Object.keys(extractedSchema.properties).map(key => ({
+        name: key,
+        ...extractedSchema.properties[key]
+      }));
+    } else if (resData?.journeyStepId === 'email_passkey_login_form' || resData?.journeyStepId === 'login') {
+      // Hardcode fallback for login form
+      finalSchema = [
+        { name: 'username', label: 'Email or Username', type: 'string', required: true }
+      ];
+    } else if (resData?.journeyStepId === 'password') {
+      // Hardcode fallback for password
+      finalSchema = [
+        { name: 'password', label: 'Password', type: 'password', required: true }
+      ];
+    }
+
+    if (finalSchema.length > 0) {
+      setFormSchema(finalSchema);
       setFormData((prev) => ({ ...prev })); // Keep existing form data
       setError(null);
       setFlowState('journey');
@@ -239,7 +286,6 @@ export function Login({ onLogin }: LoginProps) {
       setError('Unsupported step reached. Check console for details.');
       setFlowState('error');
     }
-
     setLoading(false);
   };
 
