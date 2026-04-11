@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ido, initialize, webauthn } from '@transmitsecurity/platform-web-sdk';
 import { initDrs, reportUsernameAction, setAuthenticatedUser } from './drs';
 
@@ -18,6 +18,22 @@ interface LoginProps {
 }
 
 type FlowState = 'init' | 'username' | 'journey' | 'success' | 'error';
+type StartJourneyOptions = {
+  allowEmptyUsername?: boolean;
+  skipAutofillAbort?: boolean;
+};
+
+function getRejectionMessage(stepOrError: any): string {
+  const reason =
+    stepOrError?.data?.failure_data?.reason?.type ||
+    stepOrError?.data?.reason?.type;
+
+  if (reason === 'assertion_rejected') {
+    return 'Passkey assertion was rejected. Use the same username and an already-registered passkey.';
+  }
+
+  return stepOrError?.error_message || stepOrError?.message || 'Authentication rejected';
+}
 
 export function Login({ onLogin }: LoginProps) {
   const [flowState, setFlowState] = useState<FlowState>('init');
@@ -25,10 +41,36 @@ export function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [autofillSupported, setAutofillSupported] = useState(false);
 
   // Dynamic form state for IDO journey
   const [formSchema, setFormSchema] = useState<any[]>([]);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const pendingAutofillResultRef = useRef<string | null>(null);
+  const autofillActiveRef = useRef(false);
+  const loadingRef = useRef(false);
+
+  const abortAutofillIfActive = () => {
+    if (!autofillActiveRef.current) {
+      return;
+    }
+    try {
+      webauthn.authenticate.autofill.abort();
+    } catch (err) {
+      console.warn('Failed to abort autofill flow', err);
+    }
+    autofillActiveRef.current = false;
+  };
+
+  const consumePendingAutofillResult = () => {
+    const pendingResult = pendingAutofillResultRef.current;
+    pendingAutofillResultRef.current = null;
+    return pendingResult;
+  };
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     // Initialize DRS for fraud detection
@@ -43,9 +85,11 @@ export function Login({ onLogin }: LoginProps) {
             serverPath: 'https://api.transmitsecurity.io/ido'
           },
           webauthn: {
-            serverPath: 'https://api.transmitsecurity.io/cis'
+            serverPath: 'https://api.transmitsecurity.io'
           }
         });
+        const supportsAutofill = await webauthn.isAutofillSupported();
+        setAutofillSupported(supportsAutofill);
         setSdkReady(true);
         setFlowState('username');
       } catch (err: unknown) {
@@ -55,6 +99,12 @@ export function Login({ onLogin }: LoginProps) {
       }
     }
     initSDK();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      abortAutofillIfActive();
+    };
   }, []);
 
   const processJourneyStep = async (resData: any) => {
@@ -76,7 +126,7 @@ export function Login({ onLogin }: LoginProps) {
 
     // Check if rejection
     if (resData?.journeyStepId === 'action:rejection') {
-      setError('Authentication rejected. Please try again.');
+      setError(getRejectionMessage(resData));
       setFlowState('error');
       setLoading(false);
       return;
@@ -135,8 +185,8 @@ export function Login({ onLogin }: LoginProps) {
       console.log('WebAuthn Authentication step detected:', resData);
       try {
         const webauthnUsername = resData?.data?.username || formData.username || username;
-        // Call WebAuthn SDK to authenticate with passkey
-        const webauthnEncodedResult = await webauthn.authenticate.modal({
+        const pendingAutofillResult = consumePendingAutofillResult();
+        const webauthnEncodedResult = pendingAutofillResult || await webauthn.authenticate.modal({
           username: webauthnUsername
         });
         console.log('WebAuthn authentication successful, submitting result');
@@ -206,7 +256,8 @@ export function Login({ onLogin }: LoginProps) {
     if (controlFlow?.type === 'transmit_platform_web_authn_authentication') {
       console.log('WebAuthn Authentication (control_flow) detected:', controlFlow);
       try {
-        const webauthnEncodedResult = await webauthn.authenticate.modal({
+        const pendingAutofillResult = consumePendingAutofillResult();
+        const webauthnEncodedResult = pendingAutofillResult || await webauthn.authenticate.modal({
           username: controlFlow.username || formData.username || username
         });
         const result = await ido.submitClientResponse('client_input', {
@@ -229,7 +280,8 @@ export function Login({ onLogin }: LoginProps) {
       console.log('WebAuthn Passkey option detected:', resData.clientResponseOptions.passkeys);
       try {
         const webauthnUsername = resData?.data?.username || formData.username || username;
-        const webauthnEncodedResult = await webauthn.authenticate.modal({
+        const pendingAutofillResult = consumePendingAutofillResult();
+        const webauthnEncodedResult = pendingAutofillResult || await webauthn.authenticate.modal({
           username: webauthnUsername
         });
 
@@ -290,30 +342,82 @@ export function Login({ onLogin }: LoginProps) {
   };
 
   // Start a passkey journey
-  const startJourney = async (journeyName: string) => {
-    if (!username.trim()) {
+  const startJourney = async (journeyName: string, options: StartJourneyOptions = {}) => {
+    const trimmedUsername = username.trim();
+    if (!options.allowEmptyUsername && !trimmedUsername) {
       setError('Please enter a username');
       return;
     }
 
+    if (!options.skipAutofillAbort) {
+      abortAutofillIfActive();
+    }
+
     setError(null);
     setLoading(true);
-    setFormData({ username }); // Pre-fill username
+    setFormData(trimmedUsername ? { username: trimmedUsername } : {}); // Pre-fill username when known
 
-    // Report passkey login attempt to DRS
-    await reportUsernameAction(username.trim());
+    // Report passkey login attempt to DRS when username is known.
+    if (trimmedUsername) {
+      try {
+        await reportUsernameAction(trimmedUsername);
+      } catch (err) {
+        console.warn('DRS report failed, continuing auth flow', err);
+      }
+    }
 
     try {
       const resData = await ido.startJourney(journeyName);
       await processJourneyStep(resData);
     } catch (err: unknown) {
       console.error('Journey failed:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start journey';
+      const errorMessage = getRejectionMessage(err);
       setError(errorMessage);
       setFlowState('error');
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!sdkReady || !autofillSupported || flowState !== 'username' || loading) {
+      return;
+    }
+    if (autofillActiveRef.current) {
+      return;
+    }
+
+    autofillActiveRef.current = true;
+    webauthn.authenticate.autofill.activate({
+      handlers: {
+        onReady: () => {
+          setError(null);
+        },
+        onSuccess: async (webauthnEncodedResult: string) => {
+          autofillActiveRef.current = false;
+          pendingAutofillResultRef.current = webauthnEncodedResult;
+          if (loadingRef.current) {
+            return;
+          }
+          await startJourney(JOURNEYS.PASSKEY_AUTH, {
+            allowEmptyUsername: true,
+            skipAutofillAbort: true,
+          });
+        },
+        onError: async (err) => {
+          autofillActiveRef.current = false;
+          if (err?.errorCode === 'autofill_authentication_aborted') {
+            return;
+          }
+          console.error('Passkey autofill failed:', err);
+          setError(getRejectionMessage(err));
+        },
+      },
+    });
+
+    return () => {
+      abortAutofillIfActive();
+    };
+  }, [autofillSupported, flowState, loading, sdkReady]);
 
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,7 +443,7 @@ export function Login({ onLogin }: LoginProps) {
       await processJourneyStep(resData);
     } catch (err: unknown) {
       console.error('Submit failed:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Error submitting input';
+      const errorMessage = getRejectionMessage(err);
       setError(errorMessage);
       setLoading(false);
     }
@@ -347,6 +451,8 @@ export function Login({ onLogin }: LoginProps) {
 
   // Reset to start
   const handleReset = () => {
+    abortAutofillIfActive();
+    pendingAutofillResultRef.current = null;
     setFlowState('username');
     setFormSchema([]);
     setFormData({});
@@ -377,7 +483,7 @@ export function Login({ onLogin }: LoginProps) {
       <div className="login-actions">
         <button
           type="button"
-          onClick={() => startJourney(JOURNEYS.PASSKEY_AUTH)}
+          onClick={() => startJourney(JOURNEYS.PASSKEY_AUTH, { allowEmptyUsername: true })}
           disabled={loading || !sdkReady}
           className="btn btn-primary"
         >
