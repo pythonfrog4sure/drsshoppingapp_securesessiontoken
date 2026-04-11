@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.drsshoppingapp.devservers</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/krishnabhimavarapu/Desktop/aicodingprojects/drsshoppingapp_securesessiontoken</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/npm</string>
+		<string>run</string>
+		<string>start:idle</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>NPM_BIN</key>
+		<string>/opt/homebrew/bin/npm</string>
+		<key>IDLE_THRESHOLD_MINUTES</key>
+		<string>30</string>
+		<key>IDLE_CHECK_INTERVAL_SEC</key>
+		<string>60</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/Users/krishnabhimavarapu/Library/Logs/drsshoppingapp-devservers.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/krishnabhimavarapu/Library/Logs/drsshoppingapp-devservers.err.log</string>
+</dict>
+</plist>
