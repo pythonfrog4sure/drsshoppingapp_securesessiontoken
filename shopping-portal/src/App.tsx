@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import './index.css';
+import './webauthn-lab/lab.css';
 import { initDrs } from './drs';
+import { WebAuthnUseCasesLab } from './webauthn-lab/WebAuthnUseCasesLab';
 
 function shellSingleQuote(s: string): string {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
@@ -8,11 +10,15 @@ function shellSingleQuote(s: string): string {
 
 function App() {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [view, setView] = useState<'hub' | 'webauthn-lab'>('hub');
 
-  // Initialize DRS on hub page load for navigation tracking
+  // DRS uses a different Transmit client than the WebAuthn lab (Mosaic / passkey app).
+  // Initialize only on the hub so opening the lab does not overwrite SDK state.
   useEffect(() => {
-    initDrs();
-  }, []);
+    if (view === 'hub') {
+      void initDrs();
+    }
+  }, [view]);
 
   const copyStartAllCommand = async () => {
     const cmd = `cd ${shellSingleQuote(__MONOREPO_ROOT__)} && npm start`;
@@ -25,6 +31,10 @@ function App() {
       window.setTimeout(() => setCopyFeedback(null), 5000);
     }
   };
+
+  if (view === 'webauthn-lab') {
+    return <WebAuthnUseCasesLab onBack={() => setView('hub')} />;
+  }
 
   return (
     <>
@@ -85,6 +95,15 @@ function App() {
             </p>
             <span className="card-btn">Launch Passkey Only App &rarr;</span>
           </a>
+
+          <button type="button" className="card card-wcl" onClick={() => setView('webauthn-lab')}>
+            <span className="card-icon">🧪</span>
+            <h2 className="card-title">WebAuthn use cases lab</h2>
+            <p className="card-desc">
+              Transmit Mosaic WebAuthn (same credentials as the Passkey shop) plus optional raw browser WebAuthn demos — runs inside this hub (no extra port).
+            </p>
+            <span className="card-btn">Open lab &rarr;</span>
+          </button>
         </div>
       </main>
     </>

@@ -64,7 +64,8 @@ body {
   animation: fadeInUp 1s ease-out;
 }
 
-.card {
+a.card,
+button.card {
   position: relative;
   width: 340px;
   padding: 3rem 2rem;
@@ -82,7 +83,18 @@ body {
   display: block;
 }
 
-.card::before {
+button.card {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+a.card {
+  text-decoration: none;
+}
+
+a.card::before,
+button.card::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -92,14 +104,16 @@ body {
   transition: opacity 0.4s ease;
 }
 
-.card:hover {
+a.card:hover,
+button.card:hover {
   transform: translateY(-12px);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   border-color: rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.05);
 }
 
-.card:hover::before {
+a.card:hover::before,
+button.card:hover::before {
   opacity: 1;
 }
 
@@ -152,6 +166,22 @@ body {
   border-top-color: #00ff88;
 }
 
+.card-wcl:hover {
+  box-shadow: 0 20px 50px rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.35);
+}
+
+.card-wcl .card-icon {
+  background: linear-gradient(135deg, #22d3ee 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.card-wcl {
+  border-top-width: 4px;
+  border-top-color: #22d3ee;
+}
+
 .card-icon {
   font-size: 3rem;
   margin-bottom: 1.5rem;
@@ -185,7 +215,8 @@ body {
   border: 1px solid rgba(255,255,255,0.05);
 }
 
-.card:hover .card-btn {
+a.card:hover .card-btn,
+button.card:hover .card-btn {
   background: #fff;
   color: #010314;
   transform: translateX(8px);
