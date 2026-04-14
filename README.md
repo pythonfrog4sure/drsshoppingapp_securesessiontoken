@@ -89,19 +89,19 @@ To avoid browser SSL warnings:
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain shopping-app-passkey/certs/ca.crt
 ```
 
-### 4. Start All Applications
+### 4. Start the portal (default)
 
 ```bash
 npm start
 ```
 
-This starts all 4 apps concurrently with color-coded output:
-- **[portal]** (blue) - Shopping Portal Hub
-- **[drs]** (green) - Shop with DRS
-- **[ido]** (magenta) - Shop with IDO
-- **[passkey]** (cyan) - Shop with Passkey
+This starts **shopping-portal** only (the hub on **https://localhost:3000**). Other workspace apps stay stopped until you start them (use **Start all apps** in the hub while running `npm run dev` for shopping-portal, or run `npm run start:all` from the repo root).
 
-Open **https://localhost:3000** to access the portal hub.
+To start **every** dev server in one terminal (old behavior):
+
+```bash
+npm run start:full
+```
 
 ---
 
@@ -109,8 +109,10 @@ Open **https://localhost:3000** to access the portal hub.
 
 | Command | Description |
 |---------|-------------|
-| `npm start` | Start all apps concurrently |
+| `npm start` | Start **shopping-portal** only (hub on port 3000) |
 | `npm run dev` | Alias for `npm start` |
+| `npm run start:all` | Start sibling shopping apps (ports 3001–3004, 3010); use when the hub is already running |
+| `npm run start:full` | Start portal + all sibling apps in one process tree |
 | `npm run build` | Build all apps for production |
 | `npm install` | Install all workspace dependencies |
 

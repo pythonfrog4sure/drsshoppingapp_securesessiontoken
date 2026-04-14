@@ -1,5 +1,5 @@
 /**
- * Starts `npm start` and stops the dev stack after IDLE_THRESHOLD_MINUTES of no
+ * Starts `npm start` (shopping-portal only) and stops the dev stack after IDLE_THRESHOLD_MINUTES of no
  * TCP ESTABLISHED connections on dev ports (browsers closed / nothing using the apps).
  *
  * Env: IDLE_THRESHOLD_MINUTES (default 30), IDLE_CHECK_INTERVAL_SEC (default 60),

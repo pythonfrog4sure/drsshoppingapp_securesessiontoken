@@ -10,7 +10,9 @@
         "webauthn-me-clone"
     ],
     "scripts": {
-        "start": "concurrently -n portal,drs,ido,passkey,passkey-only,webauthn -c blue,green,magenta,cyan,yellow,red \"npm run dev -w shopping-portal\" \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w webauthn-me-clone\"",
+        "start": "npm run dev -w shopping-portal",
+        "start:all": "concurrently -n drs,ido,passkey,passkey-only,webauthn -c green,magenta,cyan,yellow,red \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w webauthn-me-clone\"",
+        "start:full": "concurrently -n portal,drs,ido,passkey,passkey-only,webauthn -c blue,green,magenta,cyan,yellow,red \"npm run dev -w shopping-portal\" \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w webauthn-me-clone\"",
         "start:idle": "node scripts/dev-with-idle-timeout.cjs",
         "dev": "npm run start",
         "install:all": "npm install",
