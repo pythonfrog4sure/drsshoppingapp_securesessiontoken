@@ -15,12 +15,13 @@ A multi-application monorepo demonstrating [Transmit Security](https://developer
 
 ## Mosaic Test Portal on GitHub
 
+**Repository:** [github.com/pythonfrog4sure/mosaictestportal](https://github.com/pythonfrog4sure/mosaictestportal)
+
 The **shopping-portal** UI can be deployed as a static site with **GitHub Pages** (workflow: `.github/workflows/deploy-mosaictestportal.yml`). The build uses `VITE_BASE_PATH=/mosaictestportal/` so assets resolve under that path.
 
-1. **Rename the repository** on GitHub to `mosaictestportal` (Settings → General → Repository name), then update your local remote:
-   `git remote set-url origin git@github.com:<your-username>/mosaictestportal.git`
-2. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Push to `main`; the workflow publishes the hub to `https://<your-username>.github.io/mosaictestportal/`.
+1. **Clone:** `git clone git@github.com:pythonfrog4sure/mosaictestportal.git`
+2. On GitHub: **Settings → Pages →** set the publishing source to **GitHub Actions** (if prompted).
+3. Push to `main`; the workflow publishes the hub to **[pythonfrog4sure.github.io/mosaictestportal](https://pythonfrog4sure.github.io/mosaictestportal/)**.
 
 The deployed hub is a **static preview**: embedded shops (`localhost:3001`–`3010`), dev Start/Stop controls, and local HTTPS flows are for **local development** only. Full demos still require running the monorepo on your machine.
 
@@ -134,7 +135,7 @@ npm run start:full
 ## Project Structure
 
 ```
-drsshoppingapp_securesessiontoken/
+mosaictestportal/
 ├── package.json              # Root monorepo config with workspaces
 ├── shopping-portal/          # Hub landing page (port 3000)
 │   ├── src/
