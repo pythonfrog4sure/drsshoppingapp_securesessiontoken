@@ -11,6 +11,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** Parent of `shopping-portal/` — monorepo root (for “start all apps” copy command). */
 const monorepoRoot = path.resolve(__dirname, '..')
 
+/** GitHub Pages project URL path, e.g. `/mosaictestportal/` — set in CI via `VITE_BASE_PATH`. */
+function publicBase(): string {
+  const raw = process.env.VITE_BASE_PATH ?? '/'
+  if (raw === '/' || raw === '') return '/'
+  return raw.endsWith('/') ? raw : `${raw}/`
+}
+
+const certKeyPath = path.resolve(__dirname, 'certs/server.key')
+const certCrtPath = path.resolve(__dirname, 'certs/server.crt')
+const hasLocalHttpsCerts = fs.existsSync(certKeyPath) && fs.existsSync(certCrtPath)
+
 function isLocalhost(addr: string | undefined): boolean {
   return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
 }
@@ -183,15 +194,20 @@ function portalHubDevControlPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: publicBase(),
   plugins: [react(), portalHubDevControlPlugin()],
   define: {
     __MONOREPO_ROOT__: JSON.stringify(monorepoRoot),
   },
   server: {
     port: 3000,
-    https: {
-      key: fs.readFileSync(path.resolve(__dirname, 'certs/server.key')),
-      cert: fs.readFileSync(path.resolve(__dirname, 'certs/server.crt')),
-    },
-  }
+    ...(hasLocalHttpsCerts
+      ? {
+          https: {
+            key: fs.readFileSync(certKeyPath),
+            cert: fs.readFileSync(certCrtPath),
+          },
+        }
+      : {}),
+  },
 })
