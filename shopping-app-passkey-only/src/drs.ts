@@ -7,25 +7,42 @@
 import { drs, initialize } from '@transmitsecurity/platform-web-sdk';
 
 const CLIENT_ID = 'FY7MYqSinvz2CzfqZzNhe';
+const DRS_SERVER_PATH = 'https://api.transmitsecurity.io/risk-collect/';
 
 let initPromise: Promise<void> | null = null;
 
 export async function initDrs(): Promise<void> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
+    console.info(
+      '[Init] DRS SDK → initializing',
+      JSON.stringify({
+        component: 'drs',
+        clientId: CLIENT_ID,
+        serverPath: DRS_SERVER_PATH,
+        enableSessionToken: true,
+      }),
+    );
     initialize({
       clientId: CLIENT_ID,
       drs: {
-        serverPath: 'https://api.transmitsecurity.io/risk-collect/',
+        serverPath: DRS_SERVER_PATH,
         enableSessionToken: true,
       },
     });
+    console.info('[Init] DRS SDK → ready');
   })();
   return initPromise;
 }
 
 /** Default expiration for secure session token (5 minutes). Max 3600. */
 const SECURE_TOKEN_EXPIRATION_SECONDS = 300;
+
+/** Truncate JWT for on-screen display (not a security guarantee; avoid sharing full token in public UI). */
+export function formatSecureTokenPreview(token: string, head = 18, tail = 8): string {
+  if (token.length <= head + tail + 1) return token;
+  return `${token.slice(0, head)}…${token.slice(-tail)}`;
+}
 
 /**
  * Get a secure session token (JWT with device binding) for backend use.

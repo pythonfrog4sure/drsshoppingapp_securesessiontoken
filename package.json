@@ -4,19 +4,21 @@
     "workspaces": [
         "shopping-portal",
         "shopping-app",
+        "shopping-app-drs-secure",
         "shopping-app-ido",
         "shopping-app-passkey",
         "shopping-app-passkey-only",
+        "shopping-app-iframe-passkey",
         "webauthn-me-clone"
     ],
     "scripts": {
         "start": "npm run dev -w shopping-portal",
-        "start:all": "concurrently -n drs,ido,passkey,passkey-only,webauthn -c green,magenta,cyan,yellow,red \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w webauthn-me-clone\"",
-        "start:full": "concurrently -n portal,drs,ido,passkey,passkey-only,webauthn -c blue,green,magenta,cyan,yellow,red \"npm run dev -w shopping-portal\" \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w webauthn-me-clone\"",
+        "start:all": "concurrently -n drs,drs-secure,ido,passkey,passkey-only,iframe-passkey,webauthn -c green,blue,magenta,cyan,yellow,white,red \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-drs-secure\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w shopping-app-iframe-passkey\" \"npm run dev -w webauthn-me-clone\"",
+        "start:full": "concurrently -n portal,drs,drs-secure,ido,passkey,passkey-only,iframe-passkey,webauthn -c blue,green,white,magenta,cyan,yellow,gray,red \"npm run dev -w shopping-portal\" \"npm run dev -w shopping-app\" \"npm run dev -w shopping-app-drs-secure\" \"npm run dev -w shopping-app-ido\" \"npm run dev -w shopping-app-passkey\" \"npm run dev -w shopping-app-passkey-only\" \"npm run dev -w shopping-app-iframe-passkey\" \"npm run dev -w webauthn-me-clone\"",
         "start:idle": "node scripts/dev-with-idle-timeout.cjs",
         "dev": "npm run start",
         "install:all": "npm install",
-        "build": "npm run build -w shopping-portal && npm run build -w shopping-app && npm run build -w shopping-app-ido && npm run build -w shopping-app-passkey && npm run build -w shopping-app-passkey-only && npm run build -w webauthn-me-clone"
+        "build": "npm run build -w shopping-portal && npm run build -w shopping-app && npm run build -w shopping-app-drs-secure && npm run build -w shopping-app-ido && npm run build -w shopping-app-passkey && npm run build -w shopping-app-passkey-only && npm run build -w shopping-app-iframe-passkey && npm run build -w webauthn-me-clone"
     },
     "devDependencies": {
         "concurrently": "^8.2.2"

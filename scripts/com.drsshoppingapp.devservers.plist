@@ -18,6 +18,8 @@
 		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 		<key>NPM_BIN</key>
 		<string>/opt/homebrew/bin/npm</string>
+		<key>DEV_SCRIPT</key>
+		<string>start:full</string>
 		<key>IDLE_THRESHOLD_MINUTES</key>
 		<string>30</string>
 		<key>IDLE_CHECK_INTERVAL_SEC</key>

@@ -1,0 +1,129 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #fff;
+}
+
+.iframe-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.iframe-shell-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.iframe-shell-title {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+}
+
+.iframe-shell-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.iframe-shell-title h1 {
+  font-size: 1.4rem;
+  background: linear-gradient(90deg, #00d9ff, #00ff88);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.iframe-shell-title p {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  max-width: 720px;
+}
+
+.iframe-shell-title code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.iframe-shell-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.iframe-shell-btn {
+  appearance: none;
+  background: linear-gradient(135deg, #1d976c 0%, #93f9b9 100%);
+  color: #000;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.iframe-shell-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.iframe-shell-btn--link {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.iframe-shell-frame-wrap {
+  flex: 1;
+  display: flex;
+  padding: 16px;
+}
+
+.iframe-shell-frame {
+  flex: 1;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: #0b1024;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.iframe-shell-footer {
+  padding: 12px 24px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.iframe-shell-footer code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+}

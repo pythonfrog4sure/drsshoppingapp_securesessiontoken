@@ -405,7 +405,12 @@ export function Login({ onLogin }: LoginProps) {
         },
         onError: async (err) => {
           autofillActiveRef.current = false;
-          if (err?.errorCode === 'autofill_authentication_aborted') {
+          const benignAutofillErrorCodes = new Set([
+            'autofill_authentication_aborted',
+            'webauthn_authentication_canceled',
+            'authentication_aborted_timeout',
+          ]);
+          if (err?.errorCode && benignAutofillErrorCodes.has(err.errorCode)) {
             return;
           }
           console.error('Passkey autofill failed:', err);

@@ -1,9 +1,11 @@
 /**
- * Starts `npm start` (shopping-portal only) and stops the dev stack after IDLE_THRESHOLD_MINUTES of no
- * TCP ESTABLISHED connections on dev ports (browsers closed / nothing using the apps).
+ * Starts the dev stack (via DEV_SCRIPT, default `start:full` = portal + all apps) and stops it after
+ * IDLE_THRESHOLD_MINUTES of no TCP ESTABLISHED connections on dev ports (browsers closed / nothing
+ * using the apps).
  *
- * Env: IDLE_THRESHOLD_MINUTES (default 30), IDLE_CHECK_INTERVAL_SEC (default 60),
- *      NPM_BIN (default npm on PATH), REPO_ROOT (optional override).
+ * Env: DEV_SCRIPT (npm script to run, default `start:full`), IDLE_THRESHOLD_MINUTES (default 30),
+ *      IDLE_CHECK_INTERVAL_SEC (default 60), NPM_BIN (default npm on PATH), REPO_ROOT (optional override).
+ *      Set IDLE_THRESHOLD_MINUTES=0 to disable the idle shutdown entirely (apps stay up).
  */
 const { spawn, execSync } = require('child_process');
 const fs = require('fs');
@@ -12,10 +14,12 @@ const path = require('path');
 const ROOT = process.env.REPO_ROOT
   ? path.resolve(process.env.REPO_ROOT)
   : path.resolve(__dirname, '..');
-const PORTS = [3000, 3001, 3002, 3003, 3004, 3010];
+const PORTS = [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3010];
 const CHECK_INTERVAL_SEC = Number(process.env.IDLE_CHECK_INTERVAL_SEC || 60);
 const IDLE_THRESHOLD_MINUTES = Number(process.env.IDLE_THRESHOLD_MINUTES || 30);
 const IDLE_THRESHOLD_SEC = IDLE_THRESHOLD_MINUTES * 60;
+const IDLE_DISABLED = IDLE_THRESHOLD_MINUTES <= 0;
+const DEV_SCRIPT = process.env.DEV_SCRIPT || 'start:full';
 const NPM_CMD = process.env.NPM_BIN || 'npm';
 const LOG = path.join(process.env.HOME || '', 'Library/Logs/drsshoppingapp-devservers.log');
 
@@ -57,12 +61,19 @@ function appendLog(line) {
   }
 }
 
-const child = spawn(NPM_CMD, ['start'], {
+const child = spawn(NPM_CMD, ['run', DEV_SCRIPT], {
   cwd: ROOT,
   stdio: 'inherit',
   env: { ...process.env },
   detached: false,
 });
+
+appendLog(
+  `${new Date().toISOString()} dev-with-idle-timeout: started "${NPM_CMD} run ${DEV_SCRIPT}" in ${ROOT}` +
+    (IDLE_DISABLED
+      ? ' (idle shutdown disabled).'
+      : ` (idle shutdown after ${IDLE_THRESHOLD_MINUTES}m).`)
+);
 
 let idleSec = 0;
 let timer;
@@ -87,6 +98,10 @@ function onTick() {
   if (child.exitCode !== null) {
     if (timer) clearInterval(timer);
     process.exit(child.exitCode ?? 0);
+    return;
+  }
+
+  if (IDLE_DISABLED) {
     return;
   }
 

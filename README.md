@@ -10,6 +10,8 @@ A multi-application monorepo demonstrating [Transmit Security](https://developer
 | **Shop with DRS** | https://localhost:3001 | Standard login secured with DRS fraud prevention |
 | **Shop with IDO** | https://localhost:3002 | Orchestrated login using IDO SDK journeys |
 | **Shop with Passkey** | https://localhost:3003 | Passwordless authentication via IDO passkey flow |
+| **Shop with Passkey Only** | https://localhost:3004 | Streamlined passkey-only flow with no fallback |
+| **iframe with Passkeys** | https://localhost:3006 | Hosts the Passkey Only app inside an iframe to demo embedded WebAuthn |
 
 ---
 
@@ -93,6 +95,8 @@ cd ../..
 cp -r shopping-app-passkey/certs shopping-app/
 cp -r shopping-app-passkey/certs shopping-app-ido/
 cp -r shopping-app-passkey/certs shopping-portal/
+cp -r shopping-app-passkey/certs shopping-app-passkey-only/
+cp -r shopping-app-passkey/certs shopping-app-iframe-passkey/
 ```
 
 ### 3. Trust the CA Certificate (macOS)
@@ -125,7 +129,7 @@ npm run start:full
 |---------|-------------|
 | `npm start` | Start **shopping-portal** only (hub on port 3000) |
 | `npm run dev` | Alias for `npm start` |
-| `npm run start:all` | Start sibling shopping apps (ports 3001–3004, 3010); use when the hub is already running |
+| `npm run start:all` | Start sibling dev apps in the same order as the stack panel (DRS, DRS secure, IDO, passkeys, WebAuthn clone; ports 3001–3005 and 3010); use when the hub is already running |
 | `npm run start:full` | Start portal + all sibling apps in one process tree |
 | `npm run build` | Build all apps for production |
 | `npm install` | Install all workspace dependencies |

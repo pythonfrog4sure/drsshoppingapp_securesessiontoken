@@ -3,28 +3,37 @@ import './index.css';
 import './webauthn-lab/lab.css';
 import { fetchSiblingAppsStatus, sleep } from './devSiblingApi';
 import { initDrs } from './drs';
-import { PortalEmbeddedApp } from './PortalEmbeddedApp';
 import { SiblingAppsStackPanel } from './SiblingAppsStackPanel';
 import { WebAuthnUseCasesLab } from './webauthn-lab/WebAuthnUseCasesLab';
 import type { SiblingAppSnapshot } from './siblingDevApps';
 
-type PortalView =
-  | 'hub'
+type PortalView = 'hub' | 'webauthn-lab';
+
+type ShopAppKey =
   | 'drs'
+  | 'drs-secure'
   | 'ido'
   | 'passkey'
   | 'passkey-only'
-  | 'webauthn-lab';
+  | 'iframe-passkey'
+  | 'fraud-apis';
 
-const EMBEDDED_SHOP_APPS: Record<
-  Exclude<PortalView, 'hub' | 'webauthn-lab'>,
-  { title: string; src: string }
-> = {
+const SHOP_APPS: Record<ShopAppKey, { title: string; src: string }> = {
   drs: { title: 'Shop with DRS', src: 'https://localhost:3001/' },
+  'drs-secure': { title: 'DRS (secure session token)', src: 'https://localhost:3005/' },
   ido: { title: 'Shop with IDO', src: 'https://localhost:3002/' },
   passkey: { title: 'Shop with Passkey', src: 'https://localhost:3003/' },
   'passkey-only': { title: 'Shop with Passkey Only', src: 'https://localhost:3004/' },
+  'iframe-passkey': { title: 'iframe with Passkeys', src: 'https://localhost:3006/' },
+  'fraud-apis': { title: 'Fraud Prevention APIs', src: 'http://localhost:4000/' },
 };
+
+/** Open a sibling shopping app in a new browser window/tab. */
+function openShopApp(key: ShopAppKey): void {
+  const cfg = SHOP_APPS[key];
+  if (!cfg) return;
+  window.open(cfg.src, '_blank', 'noopener,noreferrer');
+}
 
 function shellSingleQuote(s: string): string {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
@@ -246,11 +255,6 @@ function App() {
     return <WebAuthnUseCasesLab onBack={() => setView('hub')} />;
   }
 
-  if (view !== 'hub') {
-    const cfg = EMBEDDED_SHOP_APPS[view];
-    return <PortalEmbeddedApp title={cfg.title} src={cfg.src} onBack={() => setView('hub')} />;
-  }
-
   return (
     <>
       <div className="orb orb-1"></div>
@@ -307,40 +311,69 @@ function App() {
         </div>
 
         <div className="cards-container">
-          <button type="button" className="card card-drs" onClick={() => setView('drs')}>
+          <button type="button" className="card card-drs" onClick={() => openShopApp('drs')}>
             <span className="card-icon">🛡️</span>
             <h2 className="card-title">Shop with DRS</h2>
             <p className="card-desc">
               Experience the standard shopping platform secured with Transmit Security's <strong>Risk & Fraud Prevention (DRS)</strong> module.
             </p>
-            <span className="card-btn">Open DRS app &rarr;</span>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['drs'].src}) &nearr;</span>
           </button>
 
-          <button type="button" className="card card-ido" onClick={() => setView('ido')}>
+          <button type="button" className="card card-drs-secure" onClick={() => openShopApp('drs-secure')}>
+            <span className="card-icon">🔐</span>
+            <h2 className="card-title">DRS (secure session token)</h2>
+            <p className="card-desc">
+              Same two-step sign-in with <strong>DRS</strong> and <code className="inline-code">getSecureSessionToken</code> for
+              device-bound session tokens to your backend (see DRS module docs).
+            </p>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['drs-secure'].src}) &nearr;</span>
+          </button>
+
+          <button type="button" className="card card-ido" onClick={() => openShopApp('ido')}>
             <span className="card-icon">🌊</span>
             <h2 className="card-title">Shop with IDO</h2>
             <p className="card-desc">
               Experience the extended shopping platform integrated with Transmit Security's <strong>Orchestration (IDO)</strong> SDKs and Journeys.
             </p>
-            <span className="card-btn">Open IDO app &rarr;</span>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['ido'].src}) &nearr;</span>
           </button>
 
-          <button type="button" className="card card-passkey" onClick={() => setView('passkey')}>
+          <button type="button" className="card card-passkey" onClick={() => openShopApp('passkey')}>
             <span className="card-icon">🔑</span>
             <h2 className="card-title">Shop with Passkey</h2>
             <p className="card-desc">
               Experience passwordless authentication with Transmit Security's <strong>WebAuthn/Passkey SDK</strong> for secure biometric login.
             </p>
-            <span className="card-btn">Open Passkey app &rarr;</span>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['passkey'].src}) &nearr;</span>
           </button>
 
-          <button type="button" className="card card-passkey card-passkey-only" onClick={() => setView('passkey-only')}>
+          <button type="button" className="card card-passkey card-passkey-only" onClick={() => openShopApp('passkey-only')}>
             <span className="card-icon">🚀</span>
             <h2 className="card-title">Shop with Passkey Only</h2>
             <p className="card-desc">
               Experience the streamlined <strong>Passkey-only</strong> flow. Direct authentication with no fallback.
             </p>
-            <span className="card-btn">Open Passkey Only app &rarr;</span>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['passkey-only'].src}) &nearr;</span>
+          </button>
+
+          <button type="button" className="card card-passkey card-iframe-passkey" onClick={() => openShopApp('iframe-passkey')}>
+            <span className="card-icon">🖼️</span>
+            <h2 className="card-title">iframe with Passkeys</h2>
+            <p className="card-desc">
+              Demonstrates embedding the <strong>Shop with Passkey Only</strong> app inside an iframe — same WebAuthn ceremony, hosted by another origin via iframe.
+            </p>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['iframe-passkey'].src}) &nearr;</span>
+          </button>
+
+          <button type="button" className="card card-fraud-apis" onClick={() => openShopApp('fraud-apis')}>
+            <span className="card-icon">🧰</span>
+            <h2 className="card-title">Fraud Prevention APIs</h2>
+            <p className="card-desc">
+              A developer console for the Transmit Security <strong>Fraud Prevention (Risk)</strong> and <strong>Verify</strong> backend APIs —
+              trigger actions, get recommendations, evaluate transactions, manage rules &amp; lists, and more.
+            </p>
+            <span className="card-btn">Open in new tab ({SHOP_APPS['fraud-apis'].src}) &nearr;</span>
           </button>
 
           <button type="button" className="card card-wcl" onClick={() => setView('webauthn-lab')}>
