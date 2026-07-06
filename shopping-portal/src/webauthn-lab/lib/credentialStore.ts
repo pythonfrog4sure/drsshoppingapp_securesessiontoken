@@ -7,7 +7,10 @@ export type FlowKind =
   | 'cross-platform'
   | 'discoverable'
   | 'mosaic-register'
+  | 'mosaic-register-options'
   | 'mosaic-signin'
+  | 'mosaic-signin-identifier'
+  | 'mosaic-approve'
 
 export type StoredRecord = {
   id: string
@@ -58,7 +61,7 @@ export function addCredential(
 
 export function addMosaicRecord(
   username: string,
-  flow: 'mosaic-register' | 'mosaic-signin',
+  flow: 'mosaic-register' | 'mosaic-register-options' | 'mosaic-signin' | 'mosaic-signin-identifier' | 'mosaic-approve',
   encodedResult: string
 ): StoredRecord {
   const records = loadAll()

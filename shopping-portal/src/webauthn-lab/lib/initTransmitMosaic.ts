@@ -1,6 +1,8 @@
 /**
  * Same Transmit / Mosaic credentials as shopping-app-passkey (Login.tsx).
- * @see https://developer.transmitsecurity.com/sdk-ref/authnsdk/overview
+ * Platform SDK v2.x requires explicit `serverPath` per module and object-parameter WebAuthn calls.
+ * @see https://developer.transmitsecurity.com/sdk-ref/authnsdk/modules
+ * @see https://developer.transmitsecurity.com/sdk-ref/platform/migration
  */
 import { initialize } from '@transmitsecurity/platform-web-sdk'
 

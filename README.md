@@ -10,8 +10,13 @@ A multi-application monorepo demonstrating [Transmit Security](https://developer
 | **Shop with DRS** | https://localhost:3001 | Standard login secured with DRS fraud prevention |
 | **Shop with IDO** | https://localhost:3002 | Orchestrated login using IDO SDK journeys |
 | **Shop with Passkey** | https://localhost:3003 | Passwordless authentication via IDO passkey flow |
-| **Shop with Passkey Only** | https://localhost:3004 | Streamlined passkey-only flow with no fallback |
+| **Shop with Passkey Only** | https://localhost:3004 | Direct WebAuthn SDK only (no IDO orchestration); register + sign-in + autofill |
+| **DRS (secure session token)** | https://localhost:3005 | DRS login with `getSecureSessionToken` display for backend APIs |
 | **iframe with Passkeys** | https://localhost:3006 | Hosts the Passkey Only app inside an iframe to demo embedded WebAuthn |
+| **WebAuthn clone** | https://localhost:3010 | webauthn.me-style raw WebAuthn debugger (no Transmit SDK) |
+| **WebAuthn use cases lab** | https://localhost:3000 (embedded) | Interactive Mosaic + raw WebAuthn demos inside the portal hub |
+
+All apps use **`@transmitsecurity/platform-web-sdk` v2.x** (lockfile resolves `2.1.1`). See the [v2 migration guide](https://developer.transmitsecurity.com/sdk-ref/platform/migration) for breaking changes from v1.
 
 ---
 
@@ -93,10 +98,12 @@ cd ../..
 
 # Copy certs to all apps
 cp -r shopping-app-passkey/certs shopping-app/
+cp -r shopping-app-passkey/certs shopping-app-drs-secure/
 cp -r shopping-app-passkey/certs shopping-app-ido/
 cp -r shopping-app-passkey/certs shopping-portal/
 cp -r shopping-app-passkey/certs shopping-app-passkey-only/
 cp -r shopping-app-passkey/certs shopping-app-iframe-passkey/
+cp -r shopping-app-passkey/certs webauthn-me-clone/
 ```
 
 ### 3. Trust the CA Certificate (macOS)
@@ -140,56 +147,80 @@ npm run start:full
 
 ```
 mosaictestportal/
-├── package.json              # Root monorepo config with workspaces
-├── shopping-portal/          # Hub landing page (port 3000)
+├── package.json                    # Root monorepo config with workspaces
+├── shopping-portal/                # Hub landing page (port 3000)
 │   ├── src/
-│   │   ├── App.tsx          # Hub UI with app links
-│   │   ├── drs.ts           # DRS SDK integration
-│   │   └── index.css        # Styling
-│   ├── certs/               # SSL certificates (gitignored)
-│   └── vite.config.ts       # Vite config with HTTPS
-├── shopping-app/             # DRS demo app (port 3001)
-│   ├── src/
-│   │   ├── Login.tsx        # Two-step login with DRS tracking
-│   │   ├── Shop.tsx         # Shop UI after login
-│   │   └── drs.ts           # DRS SDK integration
+│   │   ├── App.tsx                 # Hub UI, dev stack panel, app links
+│   │   ├── webauthn-lab/           # Embedded WebAuthn use cases lab
+│   │   ├── drs.ts                  # DRS SDK integration
+│   │   └── dev/                    # Dev console + credentials banner
 │   └── certs/
-├── shopping-app-ido/         # IDO demo app (port 3002)
-│   ├── src/
-│   │   ├── Login.tsx        # Dynamic IDO journey rendering
-│   │   ├── Shop.tsx         # Shop UI after login
-│   │   └── drs.ts           # DRS SDK integration
-│   └── certs/
-└── shopping-app-passkey/     # Passkey demo app (port 3003)
-    ├── src/
-    │   ├── Login.tsx        # Passkey IDO flow
-    │   ├── Shop.tsx         # Shop UI after login
-    │   └── drs.ts           # DRS SDK integration
-    └── certs/
+├── shopping-app/                   # DRS demo app (port 3001)
+├── shopping-app-drs-secure/        # DRS + secure session token (port 3005)
+├── shopping-app-ido/               # IDO journey demo (port 3002)
+├── shopping-app-passkey/           # IDO + WebAuthn orchestration (port 3003)
+├── shopping-app-passkey-only/      # Direct WebAuthn SDK only (port 3004)
+├── shopping-app-iframe-passkey/    # iframe host for passkey-only (port 3006)
+└── webauthn-me-clone/              # Raw WebAuthn tutorial (port 3010)
 ```
 
 ---
 
+## WebAuthn Use Cases Lab
+
+Open the portal hub and click **WebAuthn use cases lab**. The lab exercises both **Mosaic (Transmit SDK v2.x)** and **raw browser WebAuthn**:
+
+| Tab | API / pattern |
+|-----|---------------|
+| Mosaic — register | `webauthn.register({ username })` |
+| Mosaic — register (options) | `register({ username, options: { registerAsDiscoverable, allowCrossPlatformAuthenticators, displayName, timeout } })` |
+| Mosaic — sign in | `webauthn.authenticate.modal({ username })` |
+| Mosaic — sign in (identifier) | `authenticate.modal({ identifier, identifierType })` — v2.x alternative to username |
+| Mosaic — approve | `webauthn.approve.modal({ username, approvalData })` — passkey-signed transaction approval |
+| Mosaic — autofill | `webauthn.authenticate.autofill.activate({ handlers })` / `.abort()` |
+| Raw — platform / cross-platform / discoverable | `navigator.credentials.create` with various authenticator options |
+| Raw — allowCredentials / discoverable / conditional | `navigator.credentials.get` patterns |
+
+Reference: [WebAuthn SDK modules](https://developer.transmitsecurity.com/sdk-ref/authnsdk/modules)
+
+---
+
 ## SDK Integration Details
+
+> **Platform SDK v2.x breaking changes** ([migration guide](https://developer.transmitsecurity.com/sdk-ref/platform/migration)):
+> - `serverPath` is **required** for every module (`drs`, `ido`, `webauthn`, `idv`).
+> - DRS is **disabled by default** — pass an explicit `drs: { serverPath, ... }` block to enable it.
+> - DRS renames: `unidentifiedUser()` → `clearUser()`, `identifyUser()` / `setUser()` → `setAuthenticatedUser()`.
+> - WebAuthn methods use a **single parameter object** (e.g. `register({ username })` not `register(username)`).
+> - IDO types moved to `@transmitsecurity/platform-web-sdk/ido` subpath exports.
 
 ### DRS (Detection & Response Services)
 
 All apps integrate DRS for fraud prevention and risk assessment:
 
 ```typescript
-// Initialize DRS on page load
-import { initDrs } from './drs';
-useEffect(() => { initDrs(); }, []);
+// Initialize DRS explicitly (v2.x — not enabled by default)
+import { initialize, drs } from '@transmitsecurity/platform-web-sdk';
+
+initialize({
+  clientId: DRS_CLIENT_ID,
+  drs: {
+    serverPath: 'https://api.transmitsecurity.io/risk-collect/',
+    enableSessionToken: true,
+  },
+});
 
 // Report login actions
-await reportUsernameAction(username);
-await reportPasswordAction(username);
+await drs.triggerActionEvent('login', { claimedUserId, claimedUserIdType: 'account_id' });
 
-// Set authenticated user after successful login
-await setAuthenticatedUser(username);
+// Set authenticated user after successful login (v2.x name)
+await drs.setAuthenticatedUser(username);
+
+// Clear user on logout (v2.x name)
+await drs.clearUser();
 
 // Get secure session token for backend API calls
-const token = await getSecureSessionToken('login', 300);
+const token = await drs.getSecureSessionToken('login', 300);
 ```
 
 **DRS tracks:**
@@ -221,12 +252,64 @@ const response = await ido.startJourney('journey_name');
 const response = await ido.submitClientResponse('client_input', formData);
 ```
 
-**Available Journeys:**
-- `password_auth_with_conditional_passkey_registration` - Password + optional passkey
+**Available Journeys (by app):**
+
+| App | Journey name | Purpose |
+|-----|--------------|---------|
+| Shop with IDO | `password_auth_with_conditional_passkey_registration` | Password login + optional passkey registration |
+| Shop with Passkey / Passkey Only | `email_passkey_authentication` | Passkey sign-in |
+| Shop with Passkey / Passkey Only | `username_email_passkey_registration` | Passkey registration |
 
 ### Passkey / WebAuthn
 
-Passkey authentication is handled via IDO journeys for orchestrated passkey flows.
+Passkey flows use either **IDO-orchestrated** journeys (Passkey shop) or the **WebAuthn SDK directly** (Passkey Only app):
+
+```typescript
+import { webauthn, initialize } from '@transmitsecurity/platform-web-sdk';
+
+// v2.x: single initialize with explicit serverPath per module
+await initialize({
+  clientId: CLIENT_ID,
+  webauthn: { serverPath: 'https://api.transmitsecurity.io' },
+});
+
+// Register (v2.x object-parameter pattern)
+const encoded = await webauthn.register({
+  username: 'user@example.com',
+  options: {
+    registerAsDiscoverable: true,
+    allowCrossPlatformAuthenticators: true,
+    displayName: 'Demo User',
+    timeout: 60,
+  },
+});
+
+// Sign in by username
+const authResult = await webauthn.authenticate.modal({ username: 'user@example.com' });
+
+// Sign in by identifier (v2.x)
+const authById = await webauthn.authenticate.modal({
+  identifier: 'user@example.com',
+  identifierType: 'email',
+});
+
+// Passkey autofill (conditional UI)
+webauthn.authenticate.autofill.activate({
+  handlers: { onReady, onSuccess, onError },
+});
+
+// Transaction approval signed with passkey (v2.x)
+const approval = await webauthn.approve.modal({
+  username: 'user@example.com',
+  approvalData: { amount: '149.99', currency: 'USD', action: 'checkout' },
+});
+```
+
+When using IDO, submit the encoded result back to the journey:
+
+```typescript
+await ido.submitClientResponse('client_input', { webauthn_encoded_result: encoded });
+```
 
 ---
 
@@ -246,6 +329,7 @@ Passkey authentication is handled via IDO journeys for orchestrated passkey flow
 |---------|-----|
 | DRS | `https://api.transmitsecurity.io/risk-collect/` |
 | IDO | `https://api.transmitsecurity.io/ido` |
+| WebAuthn | `https://api.transmitsecurity.io` (default paths under `/v1/auth/webauthn/...`) |
 
 ---
 
@@ -295,9 +379,11 @@ Passkey authentication is handled via IDO journeys for orchestrated passkey flow
 ## Resources
 
 - [Transmit Security Developer Portal](https://developer.transmitsecurity.com/)
+- [Platform SDK v2 Migration Guide](https://developer.transmitsecurity.com/sdk-ref/platform/migration)
+- [Platform SDK Changelog](https://developer.transmitsecurity.com/sdk-ref/platform/changelog)
 - [DRS SDK Reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/drs)
 - [IDO SDK Reference](https://developer.transmitsecurity.com/sdk-ref/platform/modules/ido)
-- [WebAuthn SDK Reference](https://developer.transmitsecurity.com/sdk-ref/webauthn/interfaces/webauthnsdk/)
+- [WebAuthn SDK Reference](https://developer.transmitsecurity.com/sdk-ref/authnsdk/modules)
 
 ---
 

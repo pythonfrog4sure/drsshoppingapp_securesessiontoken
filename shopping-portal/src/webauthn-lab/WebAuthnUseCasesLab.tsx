@@ -12,8 +12,13 @@ import {
 import { bufferToBase64url } from './lib/buffers'
 import { initTransmitMosaicSdk, TRANSMIT_PASSKEY_CLIENT_ID } from './lib/initTransmitMosaic'
 import {
+  isBenignAutofillError,
+  mosaicApprove,
+  mosaicAuthenticateByIdentifier,
   mosaicAuthenticateModal,
+  mosaicGetDefaultApiPaths,
   mosaicIsAutofillSupported,
+  mosaicIsPlatformAuthenticatorSupported,
   mosaicRegister,
 } from './lib/mosaicWebauthnFlows'
 import {
@@ -28,7 +33,10 @@ import {
 type Tab =
   | 'home'
   | 'mosaic-register'
+  | 'mosaic-register-options'
   | 'mosaic-signin'
+  | 'mosaic-signin-identifier'
+  | 'mosaic-approve'
   | 'mosaic-autofill'
   | 'reg-platform'
   | 'reg-cross'
@@ -41,7 +49,10 @@ type Tab =
 const TAB_LABEL: Record<Tab, string> = {
   home: 'Overview',
   'mosaic-register': 'Mosaic — register',
+  'mosaic-register-options': 'Mosaic — register (options)',
   'mosaic-signin': 'Mosaic — sign in',
+  'mosaic-signin-identifier': 'Mosaic — sign in (identifier)',
+  'mosaic-approve': 'Mosaic — approve',
   'mosaic-autofill': 'Mosaic — autofill',
   'reg-platform': 'Raw — this device',
   'reg-cross': 'Raw — cross-device',
@@ -128,8 +139,32 @@ export function WebAuthnUseCasesLab({ onBack }: { onBack: () => void }) {
             }}
           />
         )}
+        {tab === 'mosaic-register-options' && (
+          <MosaicRegisterWithOptions
+            onDone={() => {
+              refreshStore()
+              setTab('storage')
+            }}
+          />
+        )}
         {tab === 'mosaic-signin' && (
           <MosaicSignIn
+            onDone={() => {
+              refreshStore()
+              setTab('storage')
+            }}
+          />
+        )}
+        {tab === 'mosaic-signin-identifier' && (
+          <MosaicSignInByIdentifier
+            onDone={() => {
+              refreshStore()
+              setTab('storage')
+            }}
+          />
+        )}
+        {tab === 'mosaic-approve' && (
+          <MosaicApprove
             onDone={() => {
               refreshStore()
               setTab('storage')
@@ -194,15 +229,43 @@ function Home({
   recordCount: number
   mosaicInit: 'idle' | 'ok' | 'err'
 }) {
+  const [mosaicPlat, setMosaicPlat] = useState<boolean | null>(null)
+  const [apiPaths, setApiPaths] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (mosaicInit !== 'ok') return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [plat, paths] = await Promise.all([
+          mosaicIsPlatformAuthenticatorSupported(),
+          mosaicGetDefaultApiPaths(),
+        ])
+        if (!cancelled) {
+          setMosaicPlat(plat ?? false)
+          setApiPaths(JSON.stringify(paths, null, 2))
+        }
+      } catch {
+        if (!cancelled) setMosaicPlat(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [mosaicInit])
+
   return (
     <>
       <h2>Overview</h2>
       <p className="doc">
-        The <strong>Mosaic</strong> tabs call Transmit&apos;s WebAuthn APIs with the same <code>clientId</code>, IDO{' '}
-        <code>applicationId</code>, and <code>serverPath</code> values as{' '}
-        <code className="inline-code">shopping-app-passkey</code> — so registration and sign-in hit the same backend
-        configuration as the Passkey shopping app. <strong>Raw</strong> tabs exercise{' '}
-        <code>navigator.credentials</code> with challenges generated in the page (offline demo, separate from Mosaic).
+        The <strong>Mosaic</strong> tabs call Transmit Platform SDK <strong>v2.x</strong> WebAuthn APIs with the same{' '}
+        <code>clientId</code>, IDO <code>applicationId</code>, and per-module <code>serverPath</code> values as{' '}
+        <code className="inline-code">shopping-app-passkey</code>. SDK v2 requires explicit module config and uses a{' '}
+        single-parameter object for all WebAuthn calls (see{' '}
+        <a href="https://developer.transmitsecurity.com/sdk-ref/platform/migration" target="_blank" rel="noreferrer">
+          migration guide
+        </a>
+        ). <strong>Raw</strong> tabs exercise <code>navigator.credentials</code> with in-page challenges only.
       </p>
       <div className="panel">
         <h3>Transmit Mosaic SDK</h3>
@@ -212,6 +275,20 @@ function Home({
           </span>
           {mosaicInit === 'idle' ? ' Initializing…' : mosaicInit === 'ok' ? ' SDK initialized for this origin.' : ' Check network and console.'}
         </p>
+        {mosaicInit === 'ok' && (
+          <>
+            <p style={{ marginTop: '0.5rem' }}>
+              <span className={`badge ${mosaicPlat ? 'yes' : 'no'}`}>isPlatformAuthenticatorSupported</span>
+              {mosaicPlat === null ? ' …' : mosaicPlat ? ' true' : ' false'}
+            </p>
+            {apiPaths && (
+              <details style={{ marginTop: '0.75rem' }}>
+                <summary className="small">webauthn.getDefaultPaths()</summary>
+                <pre className="small" style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap' }}>{apiPaths}</pre>
+              </details>
+            )}
+          </>
+        )}
       </div>
       <div className="panel">
         <h3>Browser checks (raw demos)</h3>
@@ -229,8 +306,25 @@ function Home({
       </div>
       <ul className="flow-list">
         <li>
-          <strong>Mosaic register / sign in / autofill</strong> — <code>webauthn.register</code>,{' '}
-          <code>webauthn.authenticate.modal</code>, <code>webauthn.authenticate.autofill.activate</code>
+          <strong>Mosaic register</strong> — <code>webauthn.register(&#123; username &#125;)</code>
+        </li>
+        <li>
+          <strong>Mosaic register (options)</strong> — <code>registerAsDiscoverable</code>,{' '}
+          <code>allowCrossPlatformAuthenticators</code>, <code>displayName</code>, <code>timeout</code>
+        </li>
+        <li>
+          <strong>Mosaic sign in</strong> — <code>webauthn.authenticate.modal(&#123; username &#125;)</code>
+        </li>
+        <li>
+          <strong>Mosaic sign in (identifier)</strong> — <code>authenticate.modal(&#123; identifier, identifierType &#125;)</code>{' '}
+          (v2.x alternative to username)
+        </li>
+        <li>
+          <strong>Mosaic approve</strong> — <code>webauthn.approve.modal(&#123; username, approvalData &#125;)</code>{' '}
+          (passkey-signed transaction approval)
+        </li>
+        <li>
+          <strong>Mosaic autofill</strong> — <code>webauthn.authenticate.autofill.activate</code> / <code>.abort()</code>
         </li>
         <li>
           <strong>Raw — this device</strong> — <code>authenticatorAttachment: &apos;platform&apos;</code>
@@ -276,8 +370,8 @@ function MosaicRegister({ onDone }: { onDone: () => void }) {
     <>
       <h2>Mosaic — register</h2>
       <p className="doc">
-        Uses <code>webauthn.register</code> against Transmit with the Passkey shop credentials. Completes a passkey
-        enrollment for your Transmit app.
+        Uses <code>webauthn.register(&#123; username &#125;)</code> against Transmit with the Passkey shop credentials.
+        SDK v2 passes all arguments as a single object (not positional parameters).
       </p>
       <div className="panel">
         <label htmlFor="wcl-mr-u">Username</label>
@@ -327,8 +421,8 @@ function MosaicSignIn({ onDone }: { onDone: () => void }) {
     <>
       <h2>Mosaic — sign in (modal)</h2>
       <p className="doc">
-        Uses <code>webauthn.authenticate.modal</code> with the username you registered in Mosaic (or the Passkey shop for
-        the same RP).
+        Uses <code>webauthn.authenticate.modal(&#123; username &#125;)</code> with the username you registered in Mosaic
+        (or the Passkey shop for the same RP).
       </p>
       <div className="panel">
         <label htmlFor="wcl-ms-u">Username</label>
@@ -342,6 +436,185 @@ function MosaicSignIn({ onDone }: { onDone: () => void }) {
         <div className="row">
           <button type="button" className="primary" disabled={busy} onClick={() => void run()}>
             Sign in with Mosaic
+          </button>
+        </div>
+        {msg && <div className="msg ok">{msg}</div>}
+        {err && <div className="msg err">{err}</div>}
+      </div>
+    </>
+  )
+}
+
+function MosaicRegisterWithOptions({ onDone }: { onDone: () => void }) {
+  const [username, setUsername] = useState('mosaic.user')
+  const [displayName, setDisplayName] = useState('Mosaic Demo User')
+  const [registerAsDiscoverable, setRegisterAsDiscoverable] = useState(true)
+  const [allowCrossPlatform, setAllowCrossPlatform] = useState(true)
+  const [timeout, setTimeoutSec] = useState('60')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const run = async () => {
+    const u = username.trim() || 'user'
+    setErr(null)
+    setMsg(null)
+    setBusy(true)
+    try {
+      const encoded = await mosaicRegister(u, {
+        displayName: displayName.trim() || u,
+        registerAsDiscoverable,
+        allowCrossPlatformAuthenticators: allowCrossPlatform,
+        timeout: Number.parseInt(timeout, 10) || undefined,
+      })
+      addMosaicRecord(u, 'mosaic-register-options', encoded)
+      setMsg(`Registered with options. Encoded result (prefix): ${encoded.slice(0, 48)}…`)
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Mosaic — register (options)</h2>
+      <p className="doc">
+        Uses <code>webauthn.register(&#123; username, options &#125;)</code> with{' '}
+        <code>WebauthnRegistrationOptions</code> from SDK v2.x. Defaults match the SDK:{' '}
+        <code>registerAsDiscoverable: true</code>, <code>allowCrossPlatformAuthenticators: true</code>.
+      </p>
+      <div className="panel">
+        <label htmlFor="wcl-mro-u">Username</label>
+        <input id="wcl-mro-u" value={username} onChange={(e) => setUsername(e.target.value)} disabled={busy} autoComplete="username" />
+        <label htmlFor="wcl-mro-dn" style={{ marginTop: '0.75rem' }}>displayName</label>
+        <input id="wcl-mro-dn" value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={busy} />
+        <label htmlFor="wcl-mro-to" style={{ marginTop: '0.75rem' }}>timeout (seconds)</label>
+        <input id="wcl-mro-to" type="number" min={1} value={timeout} onChange={(e) => setTimeoutSec(e.target.value)} disabled={busy} />
+        <div className="row" style={{ marginTop: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
+          <label className="small">
+            <input type="checkbox" checked={registerAsDiscoverable} onChange={(e) => setRegisterAsDiscoverable(e.target.checked)} disabled={busy} />
+            {' '}registerAsDiscoverable
+          </label>
+          <label className="small">
+            <input type="checkbox" checked={allowCrossPlatform} onChange={(e) => setAllowCrossPlatform(e.target.checked)} disabled={busy} />
+            {' '}allowCrossPlatformAuthenticators
+          </label>
+        </div>
+        <div className="row">
+          <button type="button" className="primary" disabled={busy} onClick={() => void run()}>
+            Register with options
+          </button>
+        </div>
+        {msg && <div className="msg ok">{msg}</div>}
+        {err && <div className="msg err">{err}</div>}
+      </div>
+    </>
+  )
+}
+
+function MosaicSignInByIdentifier({ onDone }: { onDone: () => void }) {
+  const [identifier, setIdentifier] = useState('mosaic.user@example.com')
+  const [identifierType, setIdentifierType] = useState('email')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const run = async () => {
+    setErr(null)
+    setMsg(null)
+    setBusy(true)
+    try {
+      const encoded = await mosaicAuthenticateByIdentifier(identifier, identifierType)
+      addMosaicRecord(identifier, 'mosaic-signin-identifier', encoded)
+      setMsg(`Signed in by identifier. Encoded result (prefix): ${encoded.slice(0, 48)}…`)
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Mosaic — sign in (identifier)</h2>
+      <p className="doc">
+        SDK v2.x supports <code>webauthn.authenticate.modal(&#123; identifier, identifierType &#125;)</code> as an
+        alternative to <code>username</code>. Supported types include <code>email</code>, <code>phone_number</code>,{' '}
+        <code>user_id</code>, <code>username</code>, or a custom identifier type configured in Mosaic.
+      </p>
+      <div className="panel">
+        <label htmlFor="wcl-msi-id">identifier</label>
+        <input id="wcl-msi-id" value={identifier} onChange={(e) => setIdentifier(e.target.value)} disabled={busy} />
+        <label htmlFor="wcl-msi-type" style={{ marginTop: '0.75rem' }}>identifierType</label>
+        <select id="wcl-msi-type" value={identifierType} onChange={(e) => setIdentifierType(e.target.value)} disabled={busy}>
+          <option value="email">email</option>
+          <option value="phone_number">phone_number</option>
+          <option value="user_id">user_id</option>
+          <option value="username">username</option>
+          <option value="account_id">account_id</option>
+        </select>
+        <div className="row">
+          <button type="button" className="primary" disabled={busy} onClick={() => void run()}>
+            Sign in by identifier
+          </button>
+        </div>
+        {msg && <div className="msg ok">{msg}</div>}
+        {err && <div className="msg err">{err}</div>}
+      </div>
+    </>
+  )
+}
+
+function MosaicApprove({ onDone }: { onDone: () => void }) {
+  const [username, setUsername] = useState('mosaic.user')
+  const [amount, setAmount] = useState('149.99')
+  const [currency, setCurrency] = useState('USD')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const run = async () => {
+    const u = username.trim() || 'user'
+    setErr(null)
+    setMsg(null)
+    setBusy(true)
+    try {
+      const encoded = await mosaicApprove(u, {
+        amount,
+        currency,
+        action: 'checkout',
+      })
+      addMosaicRecord(u, 'mosaic-approve', encoded)
+      setMsg(`Approval signed. Encoded result (prefix): ${encoded.slice(0, 48)}…`)
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Mosaic — approve (passkey signature)</h2>
+      <p className="doc">
+        Uses <code>webauthn.approve.modal(&#123; username, approvalData &#125;)</code> to sign structured approval
+        data with a registered passkey (e.g. checkout confirmation). <code>approvalData</code> is a record of up to 10
+        string key/value pairs (alphanumeric and <code>-_.:</code>).
+      </p>
+      <div className="panel">
+        <label htmlFor="wcl-map-u">Username</label>
+        <input id="wcl-map-u" value={username} onChange={(e) => setUsername(e.target.value)} disabled={busy} autoComplete="username" />
+        <label htmlFor="wcl-map-amt" style={{ marginTop: '0.75rem' }}>approvalData.amount</label>
+        <input id="wcl-map-amt" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} />
+        <label htmlFor="wcl-map-cur" style={{ marginTop: '0.75rem' }}>approvalData.currency</label>
+        <input id="wcl-map-cur" value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={busy} />
+        <div className="row">
+          <button type="button" className="primary" disabled={busy} onClick={() => void run()}>
+            Approve with passkey
           </button>
         </div>
         {msg && <div className="msg ok">{msg}</div>}
@@ -378,7 +651,7 @@ function MosaicAutofill() {
               setMsg(`Autofill sign-in succeeded. Encoded result (prefix): ${encoded.slice(0, 48)}…`)
             },
             onError: async (e: { errorCode?: string; error_message?: string; message?: string }) => {
-              if (e?.errorCode === 'autofill_authentication_aborted') return
+              if (isBenignAutofillError(e)) return
               setErr(e?.error_message || e?.message || 'Autofill authentication failed')
             },
           },
@@ -404,8 +677,9 @@ function MosaicAutofill() {
     <>
       <h2>Mosaic — passkey autofill</h2>
       <p className="doc">
-        Calls <code>webauthn.authenticate.autofill.activate</code> like the Passkey shop. Focus the username field and use
-        the browser&apos;s passkey picker when available.
+        Calls <code>webauthn.authenticate.autofill.activate(&#123; handlers &#125;)</code> like the Passkey shop. Benign
+        dismissals (<code>webauthn_authentication_canceled</code>, <code>authentication_aborted_timeout</code>) are
+        ignored. Focus the username field and use the browser&apos;s passkey picker when available.
       </p>
       {skipped && <div className="msg err">{skipped}</div>}
       <div className="panel">

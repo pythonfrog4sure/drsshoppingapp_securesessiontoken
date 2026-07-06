@@ -380,7 +380,7 @@ function App() {
             <span className="card-icon">🧪</span>
             <h2 className="card-title">WebAuthn use cases lab</h2>
             <p className="card-desc">
-              Transmit Mosaic WebAuthn (same credentials as the Passkey shop) plus optional raw browser WebAuthn demos — runs inside this hub (no extra port).
+              Platform SDK v2.x WebAuthn demos: register, sign-in, identifier auth, approve, autofill — plus raw browser WebAuthn. Same credentials as the Passkey shop; runs inside this hub.
             </p>
             <span className="card-btn">Open lab &rarr;</span>
           </button>
